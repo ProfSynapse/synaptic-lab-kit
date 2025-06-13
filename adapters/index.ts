@@ -13,6 +13,7 @@ export { AnthropicAdapter } from './AnthropicAdapter';
 export { MistralAdapter } from './MistralAdapter';
 export { OpenRouterAdapter } from './OpenRouterAdapter';
 export { RequestyAdapter } from './RequestyAdapter';
+export { OllamaAdapter } from './OllamaAdapter';
 
 import { BaseAdapter } from './BaseAdapter';
 import { OpenAIAdapter } from './OpenAIAdapter';
@@ -21,6 +22,7 @@ import { AnthropicAdapter } from './AnthropicAdapter';
 import { MistralAdapter } from './MistralAdapter';
 import { OpenRouterAdapter } from './OpenRouterAdapter';
 import { RequestyAdapter } from './RequestyAdapter';
+import { OllamaAdapter } from './OllamaAdapter';
 import { SupportedProvider, LLMProviderError } from './types';
 
 /**
@@ -42,6 +44,8 @@ export function createAdapter(provider: SupportedProvider): BaseAdapter {
       return new OpenRouterAdapter();
     case 'requesty':
       return new RequestyAdapter();
+    case 'ollama':
+      return new OllamaAdapter({ baseUrl: 'http://127.0.0.1:11434' });
     default:
       throw new LLMProviderError(
         `Unsupported provider: ${provider}`,
@@ -55,7 +59,7 @@ export function createAdapter(provider: SupportedProvider): BaseAdapter {
  * Get all available providers
  */
 export function getAvailableProviders(): SupportedProvider[] {
-  return ['openai', 'google', 'anthropic', 'mistral', 'openrouter', 'requesty'];
+  return ['openai', 'google', 'anthropic', 'mistral', 'openrouter', 'requesty', 'ollama'];
 }
 
 /**

@@ -127,7 +127,8 @@ export type SupportedProvider =
   | 'anthropic' 
   | 'mistral' 
   | 'openrouter' 
-  | 'requesty';
+  | 'requesty'
+  | 'ollama';
 
 export type SupportedModel = 
   // OpenAI

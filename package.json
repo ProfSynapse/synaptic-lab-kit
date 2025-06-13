@@ -18,10 +18,13 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "clean": "rimraf dist",
-    "prepare": "npm run build",
     "example:customer-support": "tsx examples/customer-support/run.ts",
-    "example:code-review": "tsx examples/code-review/run.ts", 
+    "example:code-review": "tsx examples/code-review/run.ts",
     "example:content-generation": "tsx examples/content-generation/run.ts",
+    "doubt-training": "tsx experiments/doubt-training/example.ts",
+    "doubt-training:mistral": "tsx experiments/doubt-training/mistral-24b-example.ts experiment",
+    "doubt-training:optimize": "tsx experiments/doubt-training/mistral-24b-example.ts optimize",
+    "doubt-training:compare": "tsx experiments/doubt-training/mistral-24b-example.ts compare",
     "cli": "tsx cli.ts"
   },
   "keywords": [
@@ -39,15 +42,14 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
     "@faker-js/faker": "^8.4.1",
-    "@google/genai": "^0.2.1",
-    "@supabase/mcp-server-supabase": "^0.1.0",
+    "@google/genai": "^1.4.0",
+    "@mistralai/mistralai": "^0.5.0",
     "@supabase/supabase-js": "^2.43.4",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
     "dotenv": "^16.4.5",
     "groq-sdk": "^0.5.0",
     "js-yaml": "^4.1.0",
-    "mistralai": "^0.5.0",
     "openai": "^4.52.7",
     "winston": "^3.13.0"
   },

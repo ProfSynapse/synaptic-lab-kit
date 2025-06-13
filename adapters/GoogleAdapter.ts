@@ -4,7 +4,7 @@
  * Based on 2025 API documentation
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { genai } from '@google/genai';
 import { BaseAdapter } from './BaseAdapter';
 import { 
   GenerateOptions, 
