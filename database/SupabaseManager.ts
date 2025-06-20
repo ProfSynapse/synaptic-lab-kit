@@ -5,20 +5,25 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { SupabaseConfig, QueryResult, DatabaseHealth, MigrationResult } from './types';
+import { SupabaseConfig, DatabaseHealth, MigrationResult } from './types';
 
 export class SupabaseManager {
-  private client: SupabaseClient;
+  private client!: SupabaseClient;
   private config: SupabaseConfig;
   private isConnected: boolean = false;
 
   constructor(config?: Partial<SupabaseConfig>) {
-    this.config = {
+    const baseConfig = {
       url: config?.url || process.env.SUPABASE_URL || '',
       anonKey: config?.anonKey || process.env.SUPABASE_ANON_KEY || '',
-      serviceRoleKey: config?.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-      accessToken: config?.accessToken || process.env.SUPABASE_ACCESS_TOKEN
+      serviceRoleKey: config?.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
     };
+    
+    if (config?.accessToken || process.env.SUPABASE_ACCESS_TOKEN) {
+      (baseConfig as any).accessToken = config?.accessToken || process.env.SUPABASE_ACCESS_TOKEN;
+    }
+    
+    this.config = baseConfig as SupabaseConfig;
 
     this.validateConfig();
     this.initializeClient();
@@ -238,11 +243,16 @@ export class SupabaseManager {
 
       await this.sql('COMMIT');
 
-      return {
+      const result: MigrationResult = {
         success: true,
-        version,
         changes
       };
+      
+      if (version) {
+        result.version = version;
+      }
+      
+      return result;
     } catch (error) {
       await this.sql('ROLLBACK');
       return {

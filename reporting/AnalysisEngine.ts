@@ -7,7 +7,6 @@
 import {
   AnalysisResult,
   AnalysisType,
-  ChartConfig,
   ComparisonResult,
   ComparisonConfig
 } from './types';
@@ -104,14 +103,14 @@ export class AnalysisEngine {
   // Private analysis methods
 
   private async analyzePerformanceTrends(execution: TestExecution): Promise<AnalysisResult> {
-    const results = execution.results.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const results = execution.results.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     
     if (results.length < 3) {
       return this.createLowConfidenceResult('performance_trends', 'Insufficient data for trend analysis');
     }
 
-    const scores = results.map(r => r.evaluation.overall);
-    const latencies = results.map(r => r.response.latency);
+    const scores = results.map(r => r.evaluation.overallScore);
+    const latencies = results.map(r => r.metadata.duration);
 
     // Calculate trends
     const scoreSlope = this.calculateSlope(scores);
@@ -157,9 +156,10 @@ export class AnalysisEngine {
     const recommendations = [];
 
     // Analyze overall accuracy
-    if (summary.accuracy > 0.9) {
+    const accuracy = summary.successRate;
+    if (accuracy > 0.9) {
       insights.push('Excellent overall accuracy achieved');
-    } else if (summary.accuracy > 0.7) {
+    } else if (accuracy > 0.7) {
       insights.push('Good accuracy with room for improvement');
       recommendations.push('Focus on edge cases that are causing failures');
     } else {
@@ -168,7 +168,7 @@ export class AnalysisEngine {
     }
 
     // Analyze criteria scores
-    const criteriaEntries = Object.entries(summary.criteriaScores);
+    const criteriaEntries = Object.entries(summary.criteriaBreakdown);
     if (criteriaEntries.length > 0) {
       const lowest = criteriaEntries.reduce((min, current) => 
         current[1] < min[1] ? current : min
@@ -181,7 +181,7 @@ export class AnalysisEngine {
     }
 
     // Analyze consistency
-    const scores = execution.results.map(r => r.evaluation.overall);
+    const scores = execution.results.map(r => r.evaluation.overallScore);
     const variance = this.calculateVariance(scores);
     
     if (variance > 0.1) {
@@ -192,13 +192,13 @@ export class AnalysisEngine {
     return {
       type: 'quality_metrics',
       title: 'Quality Metrics Analysis',
-      summary: `Overall accuracy: ${(summary.accuracy * 100).toFixed(1)}%`,
+      summary: `Overall accuracy: ${(accuracy * 100).toFixed(1)}%`,
       insights,
       recommendations,
       data: {
-        accuracy: summary.accuracy,
+        accuracy: accuracy,
         variance,
-        criteriaScores: summary.criteriaScores
+        criteriaBreakdown: summary.criteriaBreakdown
       },
       confidence: 0.9
     };
@@ -231,7 +231,8 @@ export class AnalysisEngine {
 
     // Analyze error clustering by scenario
     const errorsByScenario = failures.reduce((acc, failure) => {
-      acc[failure.scenarioId] = (acc[failure.scenarioId] || 0) + 1;
+      const scenarioId = failure.scenario.id;
+      acc[scenarioId] = (acc[scenarioId] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
@@ -269,8 +270,12 @@ export class AnalysisEngine {
     const insights = [];
     const recommendations = [];
 
-    const costPerTest = summary.totalCost / summary.totalInputs;
-    const tokensPerTest = summary.totalTokens / summary.totalInputs;
+    // Calculate cost metrics from metadata
+    const totalCost = execution.metadata.totalCost;
+    const totalTokens = execution.metadata.totalTokens;
+    const totalTests = summary.total;
+    const costPerTest = totalCost / totalTests;
+    const tokensPerTest = totalTokens / totalTests;
 
     // Cost thresholds (adjustable)
     const HIGH_COST_THRESHOLD = 0.10;
@@ -287,7 +292,7 @@ export class AnalysisEngine {
     }
 
     // Cost efficiency score
-    const efficiencyScore = summary.accuracy / costPerTest;
+    const efficiencyScore = summary.successRate / costPerTest;
     
     if (efficiencyScore > 10) {
       insights.push('Excellent cost efficiency achieved');
@@ -299,11 +304,11 @@ export class AnalysisEngine {
     return {
       type: 'cost_analysis',
       title: 'Cost Efficiency Analysis',
-      summary: `Total cost: $${summary.totalCost.toFixed(4)}, Efficiency score: ${efficiencyScore.toFixed(2)}`,
+      summary: `Total cost: $${totalCost.toFixed(4)}, Efficiency score: ${efficiencyScore.toFixed(2)}`,
       insights,
       recommendations,
       data: {
-        totalCost: summary.totalCost,
+        totalCost: totalCost,
         costPerTest,
         tokensPerTest,
         efficiencyScore,
@@ -313,7 +318,7 @@ export class AnalysisEngine {
     };
   }
 
-  private async analyzeProviderComparison(execution: TestExecution): Promise<AnalysisResult> {
+  private async analyzeProviderComparison(_execution: TestExecution): Promise<AnalysisResult> {
     // Group results by provider (would need provider info in results)
     const insights = ['Multiple providers detected in results'];
     const recommendations = ['Compare provider performance for optimization'];
@@ -331,9 +336,9 @@ export class AnalysisEngine {
 
   private async analyzePersonaPerformance(execution: TestExecution): Promise<AnalysisResult> {
     const personaResults = execution.results.reduce((acc, result) => {
-      const persona = result.personaId || 'default';
-      if (!acc[persona]) acc[persona] = [];
-      acc[persona].push(result);
+      const personaId = result.persona.id || 'default';
+      if (!acc[personaId]) acc[personaId] = [];
+      acc[personaId].push(result);
       return acc;
     }, {} as Record<string, TestResult[]>);
 
@@ -342,7 +347,7 @@ export class AnalysisEngine {
 
     const personaScores = Object.entries(personaResults).map(([persona, results]) => ({
       persona,
-      averageScore: results.reduce((sum, r) => sum + r.evaluation.overall, 0) / results.length,
+      averageScore: results.reduce((sum, r) => sum + r.evaluation.overallScore, 0) / results.length,
       count: results.length
     }));
 
@@ -380,13 +385,13 @@ export class AnalysisEngine {
 
   // Helper methods
 
-  private hasMultipleProviders(execution: TestExecution): boolean {
+  private hasMultipleProviders(_execution: TestExecution): boolean {
     // Would check if results contain multiple providers
     return false;
   }
 
   private hasPersonaData(execution: TestExecution): boolean {
-    return execution.results.some(r => r.personaId && r.personaId !== 'default');
+    return execution.results.some(r => r.persona && r.persona.id !== 'default');
   }
 
   private createLowConfidenceResult(type: AnalysisType, message: string): AnalysisResult {
@@ -432,8 +437,8 @@ export class AnalysisEngine {
     if (baseline.summary && comparison.summary) {
       // Compare accuracy
       if (metrics.includes('accuracy')) {
-        const baselineAccuracy = baseline.summary.accuracy;
-        const currentAccuracy = comparison.summary.accuracy;
+        const baselineAccuracy = baseline.summary.successRate;
+        const currentAccuracy = comparison.summary.successRate;
         const change = currentAccuracy - baselineAccuracy;
         
         changes.push({
@@ -448,8 +453,8 @@ export class AnalysisEngine {
       
       // Compare cost
       if (metrics.includes('cost')) {
-        const baselineCost = baseline.summary.totalCost;
-        const currentCost = comparison.summary.totalCost;
+        const baselineCost = baseline.metadata.totalCost;
+        const currentCost = comparison.metadata.totalCost;
         const change = currentCost - baselineCost;
         
         changes.push({
@@ -471,7 +476,7 @@ export class AnalysisEngine {
     };
   }
 
-  private generateComparisonInsights(baseline: TestExecution, comparisons: any[]): string[] {
+  private generateComparisonInsights(_baseline: TestExecution, comparisons: any[]): string[] {
     const insights = [];
     
     const improvementCount = comparisons.reduce((count, comp) => 

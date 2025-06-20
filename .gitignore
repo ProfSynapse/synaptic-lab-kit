@@ -1,5 +1,6 @@
 .claude
 .history
+.env
 dist/
 node_modules/
 outputs/

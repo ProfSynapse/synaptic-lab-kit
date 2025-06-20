@@ -11,15 +11,12 @@ import {
   TestExecution, 
   TestResult, 
   TestSummary,
-  TestStatus,
   TestProgress,
-  StreamingUpdate,
-  TestFrameworkError
+  StreamingUpdate
 } from './types';
 import { ResponseGenerator } from './ResponseGenerator';
 import { ResponseEvaluator } from './ResponseEvaluator';
 import { PersonaGenerator } from './PersonaGenerator';
-import { ScenarioBuilder } from './ScenarioBuilder';
 import { DatabaseManager } from '../database';
 import { createAdapter } from '../adapters';
 import { createEmbeddingProvider } from '../embeddings';
@@ -29,7 +26,7 @@ export class TestRunner extends EventEmitter {
   private responseGenerator: ResponseGenerator;
   private responseEvaluator: ResponseEvaluator;
   private personaGenerator: PersonaGenerator;
-  private scenarioBuilder: ScenarioBuilder;
+  // private scenarioBuilder: ScenarioBuilder;
   private database?: DatabaseManager;
 
   constructor() {
@@ -37,7 +34,7 @@ export class TestRunner extends EventEmitter {
     this.responseGenerator = new ResponseGenerator();
     this.responseEvaluator = new ResponseEvaluator();
     this.personaGenerator = new PersonaGenerator();
-    this.scenarioBuilder = new ScenarioBuilder();
+    // this.scenarioBuilder = new ScenarioBuilder();
   }
 
   /**
@@ -100,13 +97,12 @@ export class TestRunner extends EventEmitter {
       
       return executionId;
     } catch (error) {
-      throw new TestFrameworkError(
-        `Failed to start test: ${(error as Error).message}`,
-        'TEST_START_FAILED',
-        'execution',
-        { config },
-        false
-      );
+      const testError = new Error(`Failed to start test: ${(error as Error).message}`) as any;
+      testError.code = 'TEST_START_FAILED';
+      testError.category = 'execution';
+      testError.details = { config };
+      testError.recoverable = false;
+      throw testError;
     }
   }
 
@@ -127,9 +123,9 @@ export class TestRunner extends EventEmitter {
       // Configure response generator
       this.responseGenerator.configure({
         adapter: llmAdapter,
-        embeddingProvider,
-        model: config.model,
-        temperature: config.temperature,
+        ...(embeddingProvider && { embeddingProvider }),
+        ...(config.model && { model: config.model }),
+        ...(config.temperature !== undefined && { temperature: config.temperature }),
         maxRetries: config.maxRetries || 3,
         timeout: config.timeout || 30000
       });
@@ -138,7 +134,7 @@ export class TestRunner extends EventEmitter {
       this.responseEvaluator.configure({
         criteria: config.evaluation.criteria,
         thresholds: config.evaluation.thresholds,
-        customEvaluators: config.evaluation.customEvaluators
+        ...(config.evaluation.customEvaluators && { customEvaluators: config.evaluation.customEvaluators })
       });
       
       // Generate personas if not provided
@@ -147,15 +143,17 @@ export class TestRunner extends EventEmitter {
       // Execute scenarios
       for (let i = 0; i < config.scenarios.length; i++) {
         const scenario = config.scenarios[i];
-        execution.progress.currentScenario = scenario.id;
-        
-        this.emitUpdate(execution, 'progress', {
-          currentScenario: scenario.id,
-          scenarioIndex: i,
-          totalScenarios: config.scenarios.length
-        });
-        
-        await this.executeScenario(execution, scenario, personas, config);
+        if (scenario) {
+          execution.progress.currentScenario = scenario.id;
+          
+          this.emitUpdate(execution, 'progress', {
+            currentScenario: scenario.id,
+            scenarioIndex: i,
+            totalScenarios: config.scenarios.length
+          });
+          
+          await this.executeScenario(execution, scenario, personas, config);
+        }
       }
       
       // Complete execution
@@ -197,7 +195,7 @@ export class TestRunner extends EventEmitter {
             scenario,
             variables: input.variables,
             options: {
-              temperature: config.temperature,
+              ...(config.temperature !== undefined && { temperature: config.temperature }),
               maxTokens: 2000
             }
           });
@@ -212,23 +210,32 @@ export class TestRunner extends EventEmitter {
           
           // Create result
           const result: TestResult = {
-            scenarioId: scenario.id,
-            inputId: input.id,
-            personaId: persona.id,
-            response: {
-              content: response.content,
-              metadata: response.metadata,
-              tokens: response.metadata.tokens,
-              latency: response.metadata.latency,
-              cost: response.metadata.cost
-            },
+            id: uuidv4(),
+            scenario,
+            persona,
+            request: input.prompt,
+            response: response.content,
             evaluation: {
-              overall: evaluation.overallScore,
-              criteria: evaluation.criteriaScores,
+              overallScore: evaluation.overallScore,
+              criteriaScores: evaluation.criteriaScores,
               passed: evaluation.passed,
-              feedback: evaluation.feedback
+              feedback: evaluation.feedback,
+              specificIssues: evaluation.specificIssues || [],
+              strengths: evaluation.strengths || [],
+              suggestions: evaluation.suggestions || []
             },
-            timestamp: new Date()
+            metadata: {
+              model: response.metadata.model,
+              provider: config.provider,
+              usage: {
+                promptTokens: 0,
+                completionTokens: response.metadata.tokens,
+                totalTokens: response.metadata.tokens
+              },
+              duration: response.metadata.latency,
+              retries: 0
+            },
+            timestamp: new Date().toISOString()
           };
           
           execution.results.push(result);
@@ -242,28 +249,33 @@ export class TestRunner extends EventEmitter {
           execution.progress.errors++;
           
           const errorResult: TestResult = {
-            scenarioId: scenario.id,
-            inputId: input.id,
-            personaId: persona.id,
-            response: {
-              content: '',
-              metadata: { model: '', tokens: 0, latency: 0, cost: 0, finishReason: 'error' },
-              tokens: 0,
-              latency: 0,
-              cost: 0
-            },
+            id: uuidv4(),
+            scenario,
+            persona,
+            request: input.prompt,
+            response: '',
             evaluation: {
-              overall: 0,
-              criteria: {},
+              overallScore: 0,
+              criteriaScores: {},
               passed: false,
-              feedback: 'Execution failed'
+              feedback: 'Execution failed',
+              specificIssues: [(error as Error).message],
+              strengths: [],
+              suggestions: []
             },
-            timestamp: new Date(),
-            error: {
-              message: (error as Error).message,
-              code: (error as any).code,
-              stack: (error as Error).stack
-            }
+            metadata: {
+              model: '',
+              provider: config.provider,
+              usage: {
+                promptTokens: 0,
+                completionTokens: 0,
+                totalTokens: 0
+              },
+              duration: 0,
+              retries: 0,
+              error: (error as Error).message
+            },
+            timestamp: new Date().toISOString()
           };
           
           execution.results.push(errorResult);
@@ -322,7 +334,7 @@ export class TestRunner extends EventEmitter {
     
     // Collect all criteria
     results.forEach(result => {
-      Object.keys(result.evaluation.criteria).forEach(criterion => {
+      Object.keys(result.evaluation.criteriaScores).forEach(criterion => {
         allCriteria.add(criterion);
       });
     });
@@ -330,7 +342,7 @@ export class TestRunner extends EventEmitter {
     // Calculate average scores for each criterion
     allCriteria.forEach(criterion => {
       const scores = results
-        .map(r => r.evaluation.criteria[criterion])
+        .map(r => r.evaluation.criteriaScores[criterion])
         .filter(score => score !== undefined);
       
       criteriaScores[criterion] = scores.length > 0 ?
@@ -338,12 +350,12 @@ export class TestRunner extends EventEmitter {
         0;
     });
     
-    const overallScores = results.map(r => r.evaluation.overall);
+    const overallScores = results.map(r => r.evaluation.overallScore);
     const accuracy = overallScores.length > 0 ?
       overallScores.reduce((sum, score) => sum + score, 0) / overallScores.length :
       0;
     
-    const latencies = results.map(r => r.response.latency).filter(l => l > 0);
+    const latencies = results.map(r => r.metadata.duration).filter(l => l > 0);
     const averageLatency = latencies.length > 0 ?
       latencies.reduce((sum, latency) => sum + latency, 0) / latencies.length :
       0;
@@ -364,21 +376,15 @@ export class TestRunner extends EventEmitter {
     }
     
     return {
-      totalScenarios: new Set(results.map(r => r.scenarioId)).size,
-      totalInputs: results.length,
+      total: results.length,
       passed,
       failed,
-      accuracy,
-      averageLatency,
-      totalTokens: execution.metadata.totalTokens,
-      totalCost: execution.metadata.totalCost,
-      criteriaScores,
-      recommendations,
-      insights: {
-        strengths: this.identifyStrengths(results),
-        weaknesses: this.identifyWeaknesses(results),
-        patterns: this.identifyPatterns(results)
-      }
+      successRate: results.length > 0 ? passed / results.length : 0,
+      averageScore: accuracy,
+      criteriaBreakdown: criteriaScores,
+      commonIssues: this.identifyWeaknesses(results),
+      topPerformingScenarios: this.identifyStrengths(results),
+      worstPerformingScenarios: this.identifyWeaknesses(results)
     };
   }
 
@@ -404,9 +410,9 @@ export class TestRunner extends EventEmitter {
     return {
       current: execution.progress.completed,
       total: execution.progress.total,
-      currentScenario: execution.progress.currentScenario,
+      ...(execution.progress.currentScenario && { currentScenario: execution.progress.currentScenario }),
       timeElapsed,
-      estimatedTimeRemaining,
+      ...(estimatedTimeRemaining !== undefined && { estimatedTimeRemaining }),
       completedTests: execution.results
     };
   }
@@ -476,12 +482,12 @@ export class TestRunner extends EventEmitter {
   private identifyStrengths(results: TestResult[]): string[] {
     const strengths: string[] = [];
     
-    const highScoreResults = results.filter(r => r.evaluation.overall > 0.8);
+    const highScoreResults = results.filter(r => r.evaluation.overallScore > 0.8);
     if (highScoreResults.length > results.length * 0.6) {
       strengths.push('Consistently high-quality responses');
     }
     
-    const fastResults = results.filter(r => r.response.latency < 2000);
+    const fastResults = results.filter(r => r.metadata.duration < 2000);
     if (fastResults.length > results.length * 0.8) {
       strengths.push('Fast response times');
     }
@@ -492,12 +498,12 @@ export class TestRunner extends EventEmitter {
   private identifyWeaknesses(results: TestResult[]): string[] {
     const weaknesses: string[] = [];
     
-    const lowScoreResults = results.filter(r => r.evaluation.overall < 0.5);
+    const lowScoreResults = results.filter(r => r.evaluation.overallScore < 0.5);
     if (lowScoreResults.length > results.length * 0.3) {
       weaknesses.push('Low overall response quality');
     }
     
-    const errorResults = results.filter(r => r.error);
+    const errorResults = results.filter(r => r.metadata.error);
     if (errorResults.length > 0) {
       weaknesses.push(`${errorResults.length} execution errors occurred`);
     }
@@ -505,19 +511,21 @@ export class TestRunner extends EventEmitter {
     return weaknesses;
   }
 
+  /*
+  // Commented out unused method
   private identifyPatterns(results: TestResult[]): string[] {
     const patterns: string[] = [];
     
     // Group by scenario and check for consistent performance
     const scenarioGroups = results.reduce((groups, result) => {
-      const key = result.scenarioId;
+      const key = result.scenario.id;
       if (!groups[key]) groups[key] = [];
       groups[key].push(result);
       return groups;
     }, {} as Record<string, TestResult[]>);
     
     Object.entries(scenarioGroups).forEach(([scenarioId, scenarioResults]) => {
-      const avgScore = scenarioResults.reduce((sum, r) => sum + r.evaluation.overall, 0) / scenarioResults.length;
+      const avgScore = scenarioResults.reduce((sum, r) => sum + r.evaluation.overallScore, 0) / scenarioResults.length;
       
       if (avgScore > 0.9) {
         patterns.push(`Scenario ${scenarioId} consistently performs well`);
@@ -528,4 +536,5 @@ export class TestRunner extends EventEmitter {
     
     return patterns;
   }
+  */
 }

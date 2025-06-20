@@ -23,7 +23,9 @@ export class OpenAIEmbeddingProvider extends BaseEmbeddingProvider {
     super(apiKey, config.baseURL, config.timeout);
     
     this.model = config.model || 'text-embedding-3-small';
-    this.dimensions = config.dimensions;
+    if (config.dimensions !== undefined) {
+      this.dimensions = config.dimensions;
+    }
     
     this.client = axios.create({
       baseURL: this.baseURL || 'https://api.openai.com/v1',
@@ -36,7 +38,7 @@ export class OpenAIEmbeddingProvider extends BaseEmbeddingProvider {
     });
   }
 
-  async embed(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+  async embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse> {
     const startTime = Date.now();
     
     try {
@@ -200,25 +202,34 @@ export class OpenAIEmbeddingProvider extends BaseEmbeddingProvider {
    * Create provider with common configurations
    */
   static createSmall(apiKey?: string): OpenAIEmbeddingProvider {
-    return new OpenAIEmbeddingProvider({
-      apiKey,
+    const config: Partial<OpenAIEmbeddingConfig> = {
       model: 'text-embedding-3-small',
       dimensions: 1536
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new OpenAIEmbeddingProvider(config);
   }
 
   static createLarge(apiKey?: string): OpenAIEmbeddingProvider {
-    return new OpenAIEmbeddingProvider({
-      apiKey,
+    const config: Partial<OpenAIEmbeddingConfig> = {
       model: 'text-embedding-3-large',
       dimensions: 3072
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new OpenAIEmbeddingProvider(config);
   }
 
   static createAda(apiKey?: string): OpenAIEmbeddingProvider {
-    return new OpenAIEmbeddingProvider({
-      apiKey,
+    const config: Partial<OpenAIEmbeddingConfig> = {
       model: 'text-embedding-ada-002'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new OpenAIEmbeddingProvider(config);
   }
 }

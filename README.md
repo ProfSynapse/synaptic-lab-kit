@@ -4,7 +4,26 @@
 
 A modular framework designed for agentic coding systems to quickly assemble testing pipelines for LLM-powered applications through natural language instructions.
 
-## 🎯 For AI Agents: How to Use This Kit
+## 🎯 For AI Assistants: Your Role
+
+**You are the architect, users are the operators.** When a user asks you to test an LLM system:
+
+### Your Responsibilities (AI Assistant):
+1. **Build the testing pipeline** using the lab components
+2. **Create scenarios and personas** programmatically 
+3. **Set up databases and data seeding** if needed
+4. **Write the experiment code** that tests their use case
+5. **Explain how to run it** via the interactive CLI
+
+### User Responsibilities:
+1. **Provide API keys** through the CLI setup
+2. **Run the interactive CLI** with `npm run cli`
+3. **Execute tests** through the menu interface
+4. **Review reports** and iterate based on results
+
+### Division of Labor:
+- **AI Assistant** = Heavy lifting (coding, architecture, complex setup)
+- **User** = Execution and iteration (running tests, reviewing results)
 
 When a user asks you to test an LLM system, follow these steps:
 
@@ -319,7 +338,7 @@ synaptic-lab-kit/
 │   ├── content-generation.yaml       # Content quality testing
 │   └── run-examples.ts               # Example execution script
 │
-└── 🏃 cli.ts                         # Command-line interface
+└── 🏃 cli-interactive.ts             # Interactive CLI (chat-like interface)
 ```
 
 ## 🔐 Environment Setup
@@ -381,35 +400,36 @@ When tests reveal failures:
 3. **Re-test with optimized prompts**
 4. **Iterate until target accuracy**
 
-## 🚀 CLI Usage
+## 🚀 Interactive CLI Experience
+
+After you (AI assistant) create the testing pipeline, users interact through a single chat-like CLI:
 
 ```bash
-# Install and setup
+# Setup (done once)
 npm install
 cp .env.example .env
 # Edit .env with your API keys
 
-# Run predefined examples
-npm run example:customer-support
-npm run example:code-review
-npm run example:content-generation
-
-# Custom testing
-npx synaptic-lab test \
-  --domain customer-support \
-  --provider gemini-2.5-flash \
-  --criteria accuracy,empathy \
-  --scenarios 20 \
-  --personas 5
-
-# Optimize prompts from failures
-npx synaptic-lab optimize --failures results.json
-
-# Compare providers
-npx synaptic-lab compare \
-  --providers "gpt-4,claude-4,gemini-2.5" \
-  --domain code-review
+# Launch interactive CLI
+npm run cli
 ```
+
+**The CLI provides a menu-driven experience:**
+- 🚀 Quick Start - Complete setup wizard
+- 🧪 Run Interactive Test - Create and run tests
+- 🔑 Manage API Keys - Setup provider credentials
+- 📊 Batch Testing - Run multiple tests
+- 🎯 Optimize Prompts - AI-powered improvement
+- 🛠 Settings & Config - Customize experience
+- ❓ Help & Documentation - Built-in guidance
+
+**Key Feature**: Users stay inside the CLI (like a chat) rather than running individual commands.
+
+**Typical Workflow:**
+1. **AI Assistant** (you) creates the testing pipeline code
+2. **User** runs `npm run cli` to enter interactive mode
+3. **User** navigates menus to run tests, view reports, optimize prompts
+4. **CLI** handles all execution and provides real-time feedback
 
 ## 📊 Output Formats
 
@@ -433,6 +453,76 @@ A successful test run should produce:
 4. ✅ **Actionable insights** for improvement
 5. ✅ **Training data** in JSONL format
 6. ✅ **Clear reports** for stakeholders
+
+## 🧪 Adding New Experiments (For AI Assistants)
+
+The framework includes an **Experiment Registry** that makes adding new experiments trivial:
+
+### **Step 1: Create Experiment Directory**
+```bash
+mkdir experiments/your-experiment-name/
+```
+
+### **Step 2: Add Configuration**
+Create `experiments/your-experiment-name/experiment.config.ts`:
+```typescript
+import { ExperimentConfig } from '../ExperimentRegistry';
+
+export const config: ExperimentConfig = {
+  id: 'your-experiment-id',
+  name: 'Your Experiment Name', 
+  description: 'Brief description of what this experiment does',
+  icon: '🔬',
+  category: 'evaluation', // training | evaluation | optimization | analysis
+  difficulty: 'beginner', // beginner | intermediate | advanced
+  estimatedTime: '5-15 minutes',
+  
+  requirements: {
+    localModels: ['llama3.1:8b'],      // Required Ollama models
+    apiKeys: ['OPENAI_API_KEY'],       // Required API keys
+    dependencies: ['some-package']      // Required npm packages
+  },
+
+  options: [
+    {
+      id: 'quick',
+      name: 'Quick Test',
+      description: 'Fast validation',
+      type: 'quick',
+      estimatedTime: '2 minutes',
+      command: ['npx', 'tsx', 'experiments/your-experiment/run.ts', 'quick']
+    }
+  ]
+};
+```
+
+### **Step 3: Implement Experiment**
+Create `experiments/your-experiment-name/index.ts`:
+```typescript
+import { config } from './experiment.config';
+export { config };
+
+export async function run(option: string, model?: string, args?: any): Promise<void> {
+  console.log(`🔬 Running ${config.name}: ${option}`);
+  
+  // Your experiment logic here
+  switch (option) {
+    case 'quick':
+      await runQuickTest(model);
+      break;
+  }
+}
+
+async function runQuickTest(model: string): Promise<void> {
+  // Implementation here
+}
+```
+
+### **Step 4: Automatic CLI Integration**
+Your experiment **automatically appears** in the interactive CLI! No additional configuration needed.
+
+### **Template Available**
+Copy `/experiments/experiment-template/` as a starting point.
 
 ## 🔍 When to Use Each Component
 

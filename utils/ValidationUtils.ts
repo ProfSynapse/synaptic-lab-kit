@@ -4,9 +4,6 @@
  * Based on patterns from existing validation services
  */
 
-import { createLogger } from './Logger';
-
-const logger = createLogger('ValidationUtils');
 
 export interface ValidationResult {
   isValid: boolean;

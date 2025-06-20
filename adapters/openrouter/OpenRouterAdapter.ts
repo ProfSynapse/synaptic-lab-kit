@@ -1,20 +1,22 @@
 /**
  * OpenRouter Adapter for 400+ models
  * Supports OpenRouter's unified API with model variants
+ * Updated June 17, 2025 with latest OpenRouter features and authentication
  */
 
-import { BaseAdapter } from './BaseAdapter';
-import { GenerateOptions, StreamOptions, LLMResponse, ModelInfo, ProviderCapabilities } from './types';
+import { BaseAdapter } from '../BaseAdapter';
+import { GenerateOptions, StreamOptions, LLMResponse, ModelInfo, ProviderCapabilities, CostDetails } from '../types';
+import { ModelRegistry } from '../ModelRegistry';
 
 export class OpenRouterAdapter extends BaseAdapter {
   readonly name = 'openrouter';
   readonly baseUrl = 'https://openrouter.ai/api/v1';
 
-  constructor() {
-    super('OPENROUTER_API_KEY', 'anthropic/claude-3.5-sonnet');
+  constructor(model?: string) {
+    super('OPENROUTER_API_KEY', model || 'anthropic/claude-3.5-sonnet');
   }
 
-  async generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
+  async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
     return this.withRetry(async () => {
       try {
         const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -32,7 +34,9 @@ export class OpenRouterAdapter extends BaseAdapter {
             max_tokens: options?.maxTokens,
             response_format: options?.jsonMode ? { type: 'json_object' } : undefined,
             stop: options?.stopSequences,
-            tools: options?.tools
+            tools: options?.tools,
+            // Include usage information in response
+            usage: { include: true }
           })
         });
 
@@ -40,13 +44,13 @@ export class OpenRouterAdapter extends BaseAdapter {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         
-        return {
+        const usage = this.extractUsage(data);
+        const result: LLMResponse = {
           text: data.choices[0].message.content || '',
           model: data.model,
           provider: this.name,
-          usage: this.extractUsage(data),
           finishReason: data.choices[0].finish_reason,
           toolCalls: data.choices[0].message.tool_calls,
           metadata: {
@@ -54,6 +58,12 @@ export class OpenRouterAdapter extends BaseAdapter {
             cost: data.cost
           }
         };
+        
+        if (usage) {
+          result.usage = usage;
+        }
+        
+        return result;
       } catch (error) {
         this.handleError(error, 'generation');
       }
@@ -144,7 +154,7 @@ export class OpenRouterAdapter extends BaseAdapter {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       
       return data.data.map((model: any) => ({
         id: model.id,
@@ -162,8 +172,9 @@ export class OpenRouterAdapter extends BaseAdapter {
         }
       }));
     } catch (error) {
-      // Fallback to popular models if API call fails
-      return this.getPopularModels();
+      // Fallback to centralized model registry
+      const openrouterModels = ModelRegistry.getProviderModels('openrouter');
+      return openrouterModels.map(model => ModelRegistry.toModelInfo(model));
     }
   }
 
@@ -193,31 +204,22 @@ export class OpenRouterAdapter extends BaseAdapter {
     return `${baseModel}:${variant}`;
   }
 
-  private getPopularModels(): ModelInfo[] {
-    const models = [
-      'anthropic/claude-3.5-sonnet',
-      'openai/gpt-4-turbo-preview',
-      'google/gemini-2.5-flash',
-      'meta-llama/llama-3.2-90b-vision-instruct',
-      'mistralai/mistral-medium-3',
-      'anthropic/claude-3.5-haiku'
-    ];
 
-    return models.map(id => ({
-      id,
-      name: this.getModelDisplayName(id),
-      contextWindow: 128000,
-      maxOutputTokens: 4096,
-      supportsJSON: true,
-      supportsImages: true,
-      supportsFunctions: true,
-      supportsStreaming: true,
-      supportsThinking: false
-    }));
-  }
 
-  private getModelDisplayName(modelId: string): string {
-    const parts = modelId.split('/');
-    return parts[parts.length - 1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  async getModelPricing(modelId: string): Promise<CostDetails | null> {
+    // Use centralized model registry for pricing
+    const modelSpec = ModelRegistry.findModel('openrouter', modelId);
+    if (modelSpec) {
+      return {
+        inputCost: 0,
+        outputCost: 0,
+        totalCost: 0,
+        currency: 'USD',
+        rateInputPerMillion: modelSpec.inputCostPerMillion,
+        rateOutputPerMillion: modelSpec.outputCostPerMillion
+      };
+    }
+
+    return null;
   }
 }

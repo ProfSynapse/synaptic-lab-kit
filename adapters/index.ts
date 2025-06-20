@@ -7,45 +7,50 @@ export { BaseAdapter } from './BaseAdapter';
 export * from './types';
 
 // Provider implementations
-export { OpenAIAdapter } from './OpenAIAdapter';
-export { GoogleAdapter } from './GoogleAdapter';
-export { AnthropicAdapter } from './AnthropicAdapter';
-export { MistralAdapter } from './MistralAdapter';
-export { OpenRouterAdapter } from './OpenRouterAdapter';
-export { RequestyAdapter } from './RequestyAdapter';
+export { OpenAIAdapter } from './openai/OpenAIAdapter';
+export { GoogleAdapter } from './google/GoogleAdapter';
+export { AnthropicAdapter } from './anthropic/AnthropicAdapter';
+export { MistralAdapter } from './mistral/MistralAdapter';
+export { OpenRouterAdapter } from './openrouter/OpenRouterAdapter';
+export { RequestyAdapter } from './requesty/RequestyAdapter';
 export { OllamaAdapter } from './OllamaAdapter';
 
+// Model registry and cost calculation
+export * from './modelTypes';
+export * from './ModelRegistry';
+export * from './CostCalculator';
+
 import { BaseAdapter } from './BaseAdapter';
-import { OpenAIAdapter } from './OpenAIAdapter';
-import { GoogleAdapter } from './GoogleAdapter';
-import { AnthropicAdapter } from './AnthropicAdapter';
-import { MistralAdapter } from './MistralAdapter';
-import { OpenRouterAdapter } from './OpenRouterAdapter';
-import { RequestyAdapter } from './RequestyAdapter';
+import { OpenAIAdapter } from './openai/OpenAIAdapter';
+import { GoogleAdapter } from './google/GoogleAdapter';
+import { AnthropicAdapter } from './anthropic/AnthropicAdapter';
+import { MistralAdapter } from './mistral/MistralAdapter';
+import { OpenRouterAdapter } from './openrouter/OpenRouterAdapter';
+import { RequestyAdapter } from './requesty/RequestyAdapter';
 import { OllamaAdapter } from './OllamaAdapter';
 import { SupportedProvider, LLMProviderError } from './types';
 
 /**
  * Factory function to create adapter instances
  */
-export function createAdapter(provider: SupportedProvider): BaseAdapter {
+export function createAdapter(provider: SupportedProvider, model?: string): BaseAdapter {
   switch (provider.toLowerCase()) {
     case 'openai':
       return new OpenAIAdapter();
     case 'google':
     case 'gemini':
-      return new GoogleAdapter();
+      return new GoogleAdapter(model);
     case 'anthropic':
     case 'claude':
-      return new AnthropicAdapter();
+      return new AnthropicAdapter(model);
     case 'mistral':
-      return new MistralAdapter();
+      return new MistralAdapter(model);
     case 'openrouter':
-      return new OpenRouterAdapter();
+      return new OpenRouterAdapter(model);
     case 'requesty':
-      return new RequestyAdapter();
+      return new RequestyAdapter(model);
     case 'ollama':
-      return new OllamaAdapter({ baseUrl: 'http://127.0.0.1:11434' });
+      return new OllamaAdapter(model ? { model } : undefined);
     default:
       throw new LLMProviderError(
         `Unsupported provider: ${provider}`,
@@ -71,33 +76,27 @@ export async function getAvailableProvidersWithKeys(): Promise<Array<{
   error?: string;
 }>> {
   const providers = getAvailableProviders();
-  const results = await Promise.allSettled(
-    providers.map(async (provider) => {
-      try {
-        const adapter = createAdapter(provider);
-        const available = await adapter.isAvailable();
-        return { provider, available };
-      } catch (error) {
-        return { 
-          provider, 
-          available: false, 
-          error: (error as Error).message 
-        };
-      }
-    })
-  );
+  const providerResults: Array<{
+    provider: SupportedProvider;
+    available: boolean;
+    error?: string;
+  }> = [];
 
-  return results.map((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    } else {
-      return {
-        provider: providers[index],
+  for (const provider of providers) {
+    try {
+      const adapter = createAdapter(provider);
+      const available = await adapter.isAvailable();
+      providerResults.push({ provider, available });
+    } catch (error) {
+      providerResults.push({
+        provider,
         available: false,
-        error: result.reason?.message || 'Unknown error'
-      };
+        error: (error as Error).message
+      });
     }
-  });
+  }
+
+  return providerResults;
 }
 
 /**
@@ -171,11 +170,11 @@ export async function selectBestProvider(criteria?: {
 
   // Sort by score and return the best
   providerScores.sort((a, b) => b.score - a.score);
-  const bestProvider = providerScores[0]?.provider;
+  const bestResult = providerScores[0];
 
-  if (bestProvider) {
-    console.log(`🎯 Auto-selected provider: ${bestProvider} (score: ${providerScores[0].score})`);
-    return createAdapter(bestProvider);
+  if (bestResult?.provider) {
+    console.log(`🎯 Auto-selected provider: ${bestResult.provider} (score: ${bestResult.score})`);
+    return createAdapter(bestResult.provider);
   }
 
   return null;

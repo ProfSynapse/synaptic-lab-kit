@@ -2,7 +2,7 @@
 
 ## 🎯 Purpose
 
-The Synaptic Lab Kit is a modular framework designed for agentic coding systems to quickly assemble testing pipelines for LLM-powered applications. It enables AI agents to understand requirements, build test scenarios, and validate system performance through natural language instructions.
+The Synaptic Lab Kit is a modular framework designed for AI assistants to build comprehensive testing pipelines that users then operate through an interactive CLI. It enables the division of labor: AI assistants handle technical architecture while users execute and iterate through an intuitive interface.
 
 ## 🏗️ Architecture Principles
 
@@ -22,6 +22,7 @@ The Synaptic Lab Kit is a modular framework designed for agentic coding systems 
 - Clear, readable structure for AI comprehension
 - Self-documenting code with descriptive names
 - Minimal cognitive overhead for assembly
+- Interactive CLI for user-friendly execution
 
 ## 🔧 Core Components
 
@@ -210,13 +211,14 @@ TestResults → ReportGenerator → Human-readable Reports
            → ChatMLExporter → Training Data (JSONL)
 ```
 
-## 🎭 Usage Patterns for AI Agents
+## 🎭 Usage Patterns for AI Assistants
 
-### Example: Customer Support Testing
-When user says: *"Test customer support bot for accurate data retrieval"*
+### AI Assistant Role: Architecture and Implementation
+When user says: *"Create me an optimization pipeline for customer support testing"*
 
+**AI Assistant builds the pipeline:**
 ```typescript
-// 1. Assembly
+// 1. Assembly - AI Assistant creates complete implementation
 const scenarios = await new ScenarioBuilder().build({
   domain: 'customer-support',
   criteria: ['accuracy', 'empathy', 'resolution']
@@ -227,25 +229,58 @@ const personas = await new PersonaGenerator().generate({
   count: 10
 });
 
-// 2. Database Setup  
+// 2. Database Setup - AI Assistant designs schema
 const schema = new SchemaBuilder(db);
 await schema.createTable('customers', {
   name: 'TEXT', email: 'TEXT', tier: 'TEXT'
 });
 await new DataSeeder(db).generateAndSeed('customers', customerGenerator, 100);
 
-// 3. Testing
+// 3. Testing Configuration - AI Assistant configures evaluation
 const runner = new TestRunner({
   adapter: new OpenAIAdapter(),
   evaluator: new ResponseEvaluator(['accuracy', 'empathy'])
 });
 
-const results = await runner.run(scenarios, personas);
-
-// 4. Output
-await new ReportGenerator().generateMarkdown(results);
-await new ChatMLExporter().exportConversations(results);
+// 4. Export ready-to-run experiment
+export { scenarios, personas, runner };
 ```
+
+### User Role: Execution via Interactive CLI
+**User operates the pipeline:**
+```bash
+# User launches interactive CLI
+npm run cli
+
+# Menu-driven execution:
+🧪 Run Interactive Test → 
+  Select: "Customer Support Testing" →
+  Choose: "OpenAI GPT-4" → 
+  Run: "20 scenarios, 5 personas" →
+  View: "Reports and training data"
+
+# Optimization cycles:
+🎯 Optimize Prompts →
+  Review: "Failed test cases" →
+  Apply: "AI-generated improvements" →
+  Re-test: "Optimized scenarios"
+```
+
+### Division of Labor Example
+
+**AI Assistant Responsibilities:**
+- 🏗️ Design comprehensive test scenarios for customer support domain
+- 🗄️ Create database schema for customer/order data with realistic seeding
+- 🎭 Generate diverse customer personas (frustrated, confused, technical, etc.)
+- ⚖️ Configure AI-powered evaluation for accuracy, empathy, and resolution
+- 📊 Set up reporting pipeline for markdown/HTML reports + JSONL training data
+
+**User Responsibilities:**
+- 🔑 Add API keys through CLI setup wizard
+- ▶️ Execute tests via "🧪 Run Interactive Test" menu option
+- 📈 Review generated reports and identify improvement areas
+- 🔄 Run optimization cycles via "🎯 Optimize Prompts" menu
+- 📊 Scale testing via "📊 Batch Testing" for larger test suites
 
 ## 🔍 Reference Files from Current System
 
@@ -274,17 +309,147 @@ await new ChatMLExporter().exportConversations(results);
 2. Extend `BaseEmbeddingProvider` for embeddings  
 3. Add environment variable
 4. Register in factory function
+5. Add to CLI provider selection menus
 
 ### Adding New Domains
 1. Create domain-specific scenario templates
 2. Add specialized evaluators
 3. Create domain personas
-4. Add to examples folder
+4. Add to CLI test type options
+5. Include in examples folder
 
 ### Adding New Output Formats
 1. Extend `ReportGenerator`
 2. Implement new export format
-3. Register in CLI options
+3. Register in CLI output options
+4. Add to interactive menu choices
+
+## 🖥️ Interactive CLI Architecture
+
+### Single Entry Point Design
+```typescript
+// cli-interactive.ts - Main CLI interface
+class SynapticCLI {
+  async start() {
+    // Welcome screen with ASCII art
+    displayWelcome();
+    
+    // Auto-discover experiments
+    await experimentRegistry.discoverExperiments();
+    
+    // Main interactive loop
+    while (this.isRunning) {
+      await this.showMainMenu();  // Menu-driven navigation
+    }
+  }
+  
+  async showMainMenu() {
+    // Present user with options:
+    // 🚀 Quick Start, 🧪 Experiments, 🔑 Auth, 📊 Batch, etc.
+  }
+}
+```
+
+### Experiment Registry System
+```typescript
+// ExperimentRegistry.ts - Auto-discovery system
+class ExperimentRegistry {
+  async discoverExperiments(): Promise<void> {
+    // Scan /experiments directory
+    // Load experiment.config.ts files
+    // Register run() functions
+    // Make available to CLI automatically
+  }
+  
+  getExperiments(): ExperimentModule[] {
+    // Return all discovered experiments
+  }
+  
+  async runExperiment(id: string, option: string, model?: string): Promise<void> {
+    // Execute specific experiment with options
+  }
+}
+```
+
+### Adding New Experiments
+```
+1. Create: experiments/my-experiment/
+   ├── experiment.config.ts     # Metadata and options
+   ├── index.ts                # run() function implementation
+   └── *.ts                    # Supporting files
+
+2. Configuration:
+   export const config = {
+     id: 'my-experiment',
+     name: 'My Experiment',
+     icon: '🔬',
+     options: [...]            # Different run modes
+   }
+
+3. Implementation:
+   export async function run(option, model, args) {
+     // Your experiment logic
+   }
+
+4. Automatic Discovery:
+   ✅ Appears in CLI menu immediately
+   ✅ No manual registration required
+   ✅ Follows same UX patterns
+```
+
+### User Experience Flow
+```
+User runs: npm run cli
+│
+├── 🎆 Welcome screen with branding
+│
+├── 📋 Auto-discovery of experiments
+│
+├── 📋 Main menu with numbered options
+│   ├── 🚀 Quick Start (setup wizard)
+│   ├── 🧪 Experiments & Testing (auto-populated)
+│   │   ├── 🎯 Doubt Training Experiment
+│   │   ├── 🔬 Custom Experiment
+│   │   └── [New experiments appear here automatically]
+│   ├── 🔑 Manage API Keys  
+│   ├── 📊 Batch Testing
+│   ├── 🎯 Optimize Prompts
+│   └── 🛠 Settings & Config
+│
+├── 🖥️ Interactive prompts for each action
+│
+├── 📊 Real-time progress indicators
+│
+└── 🔄 Return to menu after completion
+```
+
+### CLI Component Integration
+```typescript
+// Framework components used by CLI
+const pipeline = {
+  scenarios: ScenarioBuilder,    // AI Assistant configures
+  personas: PersonaGenerator,    // AI Assistant creates
+  database: SupabaseManager,     // AI Assistant sets up
+  evaluation: ResponseEvaluator, // AI Assistant designs
+  optimization: PromptOptimizer, // CLI triggers iteratively
+  reporting: ReportGenerator,    // CLI generates on demand
+  experiments: ExperimentRegistry // Auto-discovers and runs experiments
+};
+
+// User operates through menus, AI Assistant builds the logic
+```
+
+### Extensibility Pattern
+```typescript
+// Trivial to add new experiments:
+// 1. AI Assistant creates experiment directory
+// 2. Implements config and run function
+// 3. Experiment automatically appears in CLI
+// 4. No CLI code changes required
+// 5. Follows same UX patterns as existing experiments
+
+// Template available at /experiments/experiment-template/
+```
 
 ## 📈 Performance Considerations
 
@@ -303,4 +468,4 @@ await new ChatMLExporter().exportConversations(results);
 - Graceful degradation
 - Intelligent retries
 
-This architecture enables rapid assembly of testing pipelines while maintaining flexibility and extensibility for diverse use cases.
+This architecture enables AI assistants to rapidly build sophisticated testing pipelines while providing users with an intuitive, chat-like interface for execution and iteration. The clear division of labor maximizes both technical sophistication and user accessibility.

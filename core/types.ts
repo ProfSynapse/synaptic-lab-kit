@@ -20,7 +20,7 @@ export interface TestScenario {
   metadata?: Record<string, any>;
   inputs?: ScenarioInput[];
   expectedOutputs?: ExpectedOutput[];
-  context?: string;
+  contextInfo?: string;
   instructions?: string;
   data?: any[];
 }

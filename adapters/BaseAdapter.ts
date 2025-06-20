@@ -15,6 +15,8 @@ import {
   TokenUsage,
   CostDetails
 } from './types';
+import { BaseCache, CacheManager } from '../utils/CacheManager';
+import { createHash } from 'crypto';
 
 export abstract class BaseAdapter {
   abstract readonly name: string;
@@ -23,6 +25,7 @@ export abstract class BaseAdapter {
   protected apiKey: string;
   protected currentModel: string;
   protected config: ProviderConfig;
+  protected cache!: BaseCache<LLMResponse>;
 
   constructor(envKeyName: string, defaultModel: string, baseUrl?: string) {
     this.apiKey = process.env[envKeyName] || '';
@@ -34,17 +37,66 @@ export abstract class BaseAdapter {
 
     this.config = {
       apiKey: this.apiKey,
-      baseUrl: baseUrl || this.baseUrl
+      baseUrl: baseUrl || ''
     };
 
     this.validateConfiguration();
   }
 
+  protected initializeCache(cacheConfig?: any): void {
+    const cacheName = `${this.name}-responses`;
+    this.cache = CacheManager.getCache<LLMResponse>(cacheName) || 
+                 CacheManager.createLRUCache<LLMResponse>(cacheName, {
+                   maxSize: cacheConfig?.maxSize || 1000,
+                   defaultTTL: cacheConfig?.defaultTTL || 3600000, // 1 hour
+                   ...cacheConfig
+                 });
+  }
+
   // Abstract methods that each provider must implement
-  abstract generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse>;
+  abstract generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse>;
   abstract generateStream(prompt: string, options?: StreamOptions): Promise<LLMResponse>;
   abstract listModels(): Promise<ModelInfo[]>;
   abstract getCapabilities(): ProviderCapabilities;
+  abstract getModelPricing(modelId: string): Promise<CostDetails | null>;
+
+  // Cached generate method
+  async generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
+    // Skip cache if explicitly disabled or for streaming
+    if (options?.disableCache) {
+      return this.generateUncached(prompt, options);
+    }
+
+    const cacheKey = this.generateCacheKey(prompt, options);
+    
+    // Try cache first
+    const cached = await this.cache.get(cacheKey);
+    if (cached) {
+      return {
+        ...cached,
+        metadata: {
+          ...cached.metadata,
+          cached: true,
+          cacheHit: true
+        }
+      };
+    }
+
+    // Generate new response
+    const response = await this.generateUncached(prompt, options);
+    
+    // Cache the response
+    await this.cache.set(cacheKey, response, options?.cacheTTL);
+    
+    return {
+      ...response,
+      metadata: {
+        ...response.metadata,
+        cached: false,
+        cacheHit: false
+      }
+    };
+  }
 
   // Common implementations
   async generateJSON(prompt: string, schema?: any, options?: GenerateOptions): Promise<any> {
@@ -77,6 +129,33 @@ export abstract class BaseAdapter {
       }
       throw error;
     }
+  }
+
+  // Cache management methods
+  protected generateCacheKey(prompt: string, options?: GenerateOptions): string {
+    const cacheData = {
+      prompt,
+      model: options?.model || this.currentModel,
+      temperature: options?.temperature || 0.7,
+      maxTokens: options?.maxTokens || 2000,
+      topP: options?.topP,
+      frequencyPenalty: options?.frequencyPenalty,
+      presencePenalty: options?.presencePenalty,
+      stopSequences: options?.stopSequences,
+      systemPrompt: options?.systemPrompt,
+      jsonMode: options?.jsonMode
+    };
+    
+    const serialized = JSON.stringify(cacheData);
+    return createHash('sha256').update(serialized).digest('hex');
+  }
+
+  async clearCache(): Promise<void> {
+    await this.cache.clear();
+  }
+
+  getCacheMetrics() {
+    return this.cache.getMetrics();
   }
 
   async isAvailable(): Promise<boolean> {
@@ -213,11 +292,12 @@ export abstract class BaseAdapter {
   }
 
   // Cost calculation methods
-  protected calculateCost(usage: TokenUsage, model: string): CostDetails {
-    const modelInfo = this.getModelPricing(model);
+  protected async calculateCost(usage: TokenUsage, model: string): Promise<CostDetails | null> {
+    const modelInfo = await this.getModelPricing(model);
+    if (!modelInfo) return null;
     
-    const inputCost = (usage.promptTokens / 1_000_000) * modelInfo.inputPerMillion;
-    const outputCost = (usage.completionTokens / 1_000_000) * modelInfo.outputPerMillion;
+    const inputCost = (usage.promptTokens / 1_000_000) * modelInfo.rateInputPerMillion;
+    const outputCost = (usage.completionTokens / 1_000_000) * modelInfo.rateOutputPerMillion;
     const totalCost = inputCost + outputCost;
 
     return {
@@ -225,38 +305,35 @@ export abstract class BaseAdapter {
       outputCost,
       totalCost,
       currency: modelInfo.currency,
-      rateInputPerMillion: modelInfo.inputPerMillion,
-      rateOutputPerMillion: modelInfo.outputPerMillion
+      rateInputPerMillion: modelInfo.rateInputPerMillion,
+      rateOutputPerMillion: modelInfo.rateOutputPerMillion
     };
   }
 
-  protected abstract getModelPricing(model: string): {
-    inputPerMillion: number;
-    outputPerMillion: number;
-    currency: string;
-  };
-
-  protected buildLLMResponse(
+  protected async buildLLMResponse(
     content: string,
     model: string,
     usage?: TokenUsage,
     metadata?: Record<string, any>,
     finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter',
     toolCalls?: any[]
-  ): LLMResponse {
+  ): Promise<LLMResponse> {
     const response: LLMResponse = {
       text: content,
       model,
       provider: this.name,
-      usage,
-      metadata,
-      finishReason,
-      toolCalls
+      usage: usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      metadata: metadata || {},
+      finishReason: finishReason || 'stop',
+      toolCalls: toolCalls || []
     };
 
     // Calculate cost if usage is available
     if (usage) {
-      response.cost = this.calculateCost(usage, model);
+      const cost = await this.calculateCost(usage, model);
+      if (cost) {
+        response.cost = cost;
+      }
     }
 
     return response;

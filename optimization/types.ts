@@ -1,6 +1,7 @@
 /**
  * Optimization types and interfaces
  * Based on patterns from existing prompt optimization framework
+ * Extended with Hugging Face dataset and model support
  */
 
 export interface OptimizationConfig {
@@ -142,3 +143,98 @@ export interface OptimizationEvent {
 }
 
 export type OptimizationEventHandler = (event: OptimizationEvent) => void;
+
+// Hugging Face Dataset Types
+export interface OptimizationDataset {
+  id: string;
+  name: string;
+  description: string;
+  source: 'huggingface' | 'local' | 'synthetic';
+  rows: DatasetRow[];
+  metadata: DatasetMetadata;
+}
+
+export interface DatasetRow {
+  id: string;
+  data: Record<string, any>;
+  metadata?: {
+    originalIndex?: number;
+    source?: string;
+    tags?: string[];
+    [key: string]: any;
+  };
+}
+
+export interface DatasetMetadata {
+  totalRows: number;
+  columns: string[];
+  loadedAt: Date;
+  source?: string;
+  repository?: string;
+  subset?: string;
+  split?: string;
+  [key: string]: any;
+}
+
+export interface DatasetConfig {
+  name: string;
+  description?: string;
+  maxRows?: number;
+  validation?: {
+    required_columns?: string[];
+    data_types?: Record<string, string>;
+    constraints?: Record<string, any>;
+  };
+}
+
+// Hugging Face Model Integration Types
+export interface HuggingFaceOptimizationConfig extends OptimizationConfig {
+  dataset?: OptimizationDataset;
+  datasetConfig?: DatasetConfig;
+  modelConfigs?: HuggingFaceModelConfig[];
+  evaluationDataset?: OptimizationDataset;
+  benchmarkModels?: string[];
+}
+
+export interface HuggingFaceModelConfig {
+  modelId: string;
+  task?: 'text-generation' | 'text2text-generation' | 'conversational' | 'feature-extraction';
+  token?: string;
+  useInferenceAPI?: boolean;
+  useTransformersJS?: boolean;
+  parameters?: Record<string, any>;
+  quantized?: boolean;
+  revision?: string;
+}
+
+// Extended Optimization Result with HF Support
+export interface HuggingFaceOptimizationResult extends OptimizationResult {
+  datasetMetrics?: {
+    totalSamples: number;
+    trainingSamples: number;
+    validationSamples: number;
+    testSamples: number;
+    datasetQuality: number;
+  };
+  modelComparisons?: ModelComparisonResult[];
+  huggingFaceMetadata?: {
+    datasetsUsed: string[];
+    modelsEvaluated: string[];
+    totalInferences: number;
+    averageInferenceTime: number;
+  };
+}
+
+export interface ModelComparisonResult {
+  modelId: string;
+  score: number;
+  metrics: OptimizationMetrics;
+  performance: {
+    latency: number;
+    throughput: number;
+    memoryUsage?: number;
+    cost?: number;
+  };
+  recommendation: 'excellent' | 'good' | 'fair' | 'poor';
+  notes: string[];
+}

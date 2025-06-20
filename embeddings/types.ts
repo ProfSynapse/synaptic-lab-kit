@@ -129,7 +129,7 @@ export interface EmbeddingCache {
   get(key: string): Promise<number[] | null>;
   set(key: string, embedding: number[], ttl?: number): Promise<void>;
   clear(): Promise<void>;
-  size(): Promise<number>;
+  size(): number;
 }
 
 export interface EmbeddingMetrics {

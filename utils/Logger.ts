@@ -4,7 +4,7 @@
  * Based on patterns from existing logging services
  */
 
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs';
+import { appendFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -165,10 +165,11 @@ export class Logger {
     const entry: LogEntry = {
       timestamp: new Date(),
       level,
-      message,
-      component,
-      metadata
+      message
     };
+    
+    if (component !== undefined) entry.component = component;
+    if (metadata !== undefined) entry.metadata = metadata;
 
     if (this.config.enableConsole) {
       this.logToConsole(entry);
@@ -286,7 +287,7 @@ export class Logger {
   }
 
   private getDateString(): string {
-    return new Date().toISOString().split('T')[0];
+    return new Date().toISOString().split('T')[0]!;
   }
 
   private rotateLogsIfNeeded(logFile: string): void {

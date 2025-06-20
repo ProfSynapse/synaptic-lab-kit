@@ -6,7 +6,6 @@
 
 import { EventEmitter } from 'events';
 import {
-  OptimizationConfig,
   OptimizationResult,
   OptimizationProgress,
   OptimizationEvent,
@@ -171,7 +170,7 @@ export class PromptOptimizer extends EventEmitter {
     
     // Generate random variations
     for (let i = 1; i < populationSize; i++) {
-      const variation = this.generateRandomVariation(this.config.basePrompt, i);
+      const variation = await this.generateRandomVariation(this.config.basePrompt, i);
       this.population.push(variation);
     }
     
@@ -239,13 +238,13 @@ export class PromptOptimizer extends EventEmitter {
     
     // Convert summary to metrics
     return {
-      accuracy: execution.summary.accuracy,
-      relevance: execution.summary.criteriaScores.relevance || 0,
-      coherence: execution.summary.criteriaScores.coherence || 0,
-      completeness: execution.summary.criteriaScores.completeness || 0,
-      efficiency: 1 - (execution.summary.averageLatency / 10000), // Normalize latency
-      cost: execution.summary.totalCost,
-      latency: execution.summary.averageLatency
+      accuracy: execution.summary.successRate || 0,
+      relevance: execution.summary.averageScore || 0,
+      coherence: execution.summary.averageScore || 0,
+      completeness: execution.summary.averageScore || 0,
+      efficiency: 1 - ((execution as any).metadata?.averageDuration || 1000) / 10000, // Normalize latency
+      cost: (execution as any).metadata?.totalCost || 0,
+      latency: (execution as any).metadata?.averageDuration || 0
     };
   }
 
@@ -268,9 +267,9 @@ export class PromptOptimizer extends EventEmitter {
     );
   }
 
-  private generateRandomVariation(basePrompt: string, index: number): PromptVariation {
+  private async generateRandomVariation(basePrompt: string, index: number): Promise<PromptVariation> {
     const mutations = this.generateMutations(basePrompt);
-    const mutatedPrompt = this.applyMutations(basePrompt, mutations);
+    const mutatedPrompt = await this.applyMutations(basePrompt, mutations);
     
     return {
       id: `gen0_${index}`,
@@ -287,14 +286,17 @@ export class PromptOptimizer extends EventEmitter {
     };
   }
 
-  private generateMutations(prompt: string): string[] {
+  private generateMutations(_prompt: string): string[] {
     const mutations = [];
     const mutationTypes = [
       'add_context',
       'modify_instruction',
       'add_examples',
       'change_tone',
-      'add_constraints'
+      'add_constraints',
+      'format_plain_text',
+      'format_markdown',
+      'format_xml_tags'
     ];
     
     // Randomly select 1-3 mutations
@@ -305,10 +307,10 @@ export class PromptOptimizer extends EventEmitter {
       mutations.push(mutation);
     }
     
-    return mutations;
+    return mutations.filter((m): m is string => m !== undefined);
   }
 
-  private applyMutations(prompt: string, mutations: string[]): string {
+  private async applyMutations(prompt: string, mutations: string[]): Promise<string> {
     let mutatedPrompt = prompt;
     
     for (const mutation of mutations) {
@@ -328,10 +330,56 @@ export class PromptOptimizer extends EventEmitter {
         case 'add_constraints':
           mutatedPrompt += '\n\nConstraints: Keep response under 200 words.';
           break;
+        case 'format_plain_text':
+          mutatedPrompt = await this.formatAsPlainText(mutatedPrompt);
+          break;
+        case 'format_markdown':
+          mutatedPrompt = await this.formatAsMarkdown(mutatedPrompt);
+          break;
+        case 'format_xml_tags':
+          mutatedPrompt = await this.formatAsXML(mutatedPrompt);
+          break;
       }
     }
     
     return mutatedPrompt;
+  }
+
+  private async formatAsPlainText(prompt: string): Promise<string> {
+    return await this.generateFormatVariation(prompt, 'plain text');
+  }
+
+  private async formatAsMarkdown(prompt: string): Promise<string> {
+    return await this.generateFormatVariation(prompt, 'markdown');
+  }
+
+  private async formatAsXML(prompt: string): Promise<string> {
+    return await this.generateFormatVariation(prompt, 'XML');
+  }
+
+  private async generateFormatVariation(prompt: string, format: string): Promise<string> {
+    if (!this.config) return prompt;
+    
+    try {
+      const adapter = createAdapter(this.config.providers[0] as any);
+      
+      const reformatPrompt = `Please rewrite the following prompt in ${format} format while preserving all the original meaning and intent:
+
+Original prompt:
+${prompt}
+
+Rewritten in ${format} format:`;
+
+      const response = await adapter.generate(reformatPrompt, {
+        model: 'default',
+        temperature: 0.3
+      });
+
+      return response.text.trim();
+    } catch (error) {
+      console.warn(`Failed to generate ${format} variation:`, error);
+      return prompt; // Return original if formatting fails
+    }
   }
 
   private async generateNextGeneration(): Promise<void> {
@@ -354,7 +402,7 @@ export class PromptOptimizer extends EventEmitter {
       const parent2 = this.selectParent();
       
       const offspring = this.crossover(parent1, parent2);
-      const mutatedOffspring = this.mutate(offspring);
+      const mutatedOffspring = await this.mutate(offspring);
       
       newPopulation.push(mutatedOffspring);
     }
@@ -372,9 +420,10 @@ export class PromptOptimizer extends EventEmitter {
       tournament.push(this.population[randomIndex]);
     }
     
-    return tournament.reduce((best, current) => 
-      current.score > best.score ? current : best
+    const best = tournament.reduce((best, current) => 
+      (current && best && current.score > best.score) ? current : best
     );
+    return best!;
   }
 
   private crossover(parent1: PromptVariation, parent2: PromptVariation): PromptVariation {
@@ -397,14 +446,14 @@ export class PromptOptimizer extends EventEmitter {
     };
   }
 
-  private mutate(variation: PromptVariation): PromptVariation {
+  private async mutate(variation: PromptVariation): Promise<PromptVariation> {
     if (!this.config) return variation;
     
     const mutationRate = this.config.mutationRate || 0.1;
     
     if (Math.random() < mutationRate) {
       const newMutations = this.generateMutations(variation.prompt);
-      const mutatedPrompt = this.applyMutations(variation.prompt, newMutations);
+      const mutatedPrompt = await this.applyMutations(variation.prompt, newMutations);
       
       return {
         ...variation,
@@ -486,7 +535,7 @@ export class PromptOptimizer extends EventEmitter {
     return Math.ceil(text.length / 4);
   }
 
-  private async waitForCompletion(executionId: string): Promise<void> {
+  private async waitForCompletion(_executionId: string): Promise<void> {
     // Simplified waiting - would implement proper polling
     return new Promise(resolve => setTimeout(resolve, 5000));
   }

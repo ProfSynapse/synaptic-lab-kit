@@ -3,6 +3,8 @@
  * Exports test results to ChatML format for training
  */
 
+import { promises as fs } from 'fs';
+import { join } from 'path';
 import { TestExecution, TestResult } from '../core/types';
 import { ChatMLExport, ChatMLConversation, ChatMLMessage } from './types';
 
@@ -54,7 +56,9 @@ export class ChatMLExporter {
     const groups = this.groupResults(execution.results);
     
     for (const [key, results] of Object.entries(groups)) {
-      const [scenarioId, personaId] = key.split('|');
+      const parts = key.split('|');
+      const scenarioId = parts[0] || 'unknown';
+      const personaId = parts[1] || 'default';
       const conversation = await this.buildConversation(
         execution,
         scenarioId,
@@ -88,7 +92,7 @@ export class ChatMLExporter {
       metadata: {
         scenario: scenarioId,
         persona: personaId,
-        timestamp: execution.startTime.toISOString()
+        timestamp: new Date(execution.startTime).toISOString()
       }
     });
     
@@ -101,30 +105,36 @@ export class ChatMLExporter {
         metadata: {
           scenario: scenarioId,
           persona: personaId,
-          timestamp: result.timestamp.toISOString()
+          timestamp: result.timestamp
         }
       });
       
       // Assistant message
+      const assistantMetadata: any = {
+        scenario: scenarioId,
+        persona: personaId,
+        evaluation: result.evaluation,
+        timestamp: result.timestamp,
+        model: result.metadata.model,
+        cost: 0 // Would need to calculate from pricing
+      };
+      
+      const tokens = result.metadata.usage?.totalTokens;
+      if (tokens !== undefined) {
+        assistantMetadata.tokens = tokens;
+      }
+      
       messages.push({
         role: 'assistant',
-        content: result.response.content,
-        metadata: {
-          scenario: scenarioId,
-          persona: personaId,
-          evaluation: result.evaluation,
-          timestamp: result.timestamp.toISOString(),
-          tokens: result.response.tokens,
-          cost: result.response.cost,
-          model: result.response.metadata.model
-        }
+        content: result.response,
+        metadata: assistantMetadata
       });
     }
     
-    const totalTokens = results.reduce((sum, r) => sum + r.response.tokens, 0);
-    const totalCost = results.reduce((sum, r) => sum + r.response.cost, 0);
+    const totalTokens = results.reduce((sum, r) => sum + (r.metadata.usage?.totalTokens || 0), 0);
+    const totalCost = 0; // Would need to calculate from pricing
     const averageScore = results.length > 0 ?
-      results.reduce((sum, r) => sum + r.evaluation.overall, 0) / results.length :
+      results.reduce((sum, r) => sum + r.evaluation.overallScore, 0) / results.length :
       0;
     
     return {
@@ -136,7 +146,7 @@ export class ChatMLExporter {
         persona: personaId,
         provider: execution.metadata.provider,
         model: execution.metadata.model,
-        created: execution.startTime.toISOString(),
+        created: new Date(execution.startTime).toISOString(),
         totalTokens,
         totalCost,
         averageScore
@@ -148,7 +158,7 @@ export class ChatMLExporter {
    * Build system message with context
    */
   private buildSystemMessage(
-    execution: TestExecution,
+    _execution: TestExecution,
     scenarioId: string,
     personaId: string
   ): string {
@@ -174,8 +184,8 @@ export class ChatMLExporter {
    */
   private extractUserMessage(result: TestResult): string {
     // The user message would typically be stored in the test result
-    // For now, we'll use a placeholder or try to infer from context
-    return result.inputId || 'User input not available';
+    // For now, we'll use the request field or a placeholder
+    return result.request || 'User input not available';
   }
 
   /**
@@ -183,7 +193,7 @@ export class ChatMLExporter {
    */
   private groupResults(results: TestResult[]): Record<string, TestResult[]> {
     return results.reduce((groups, result) => {
-      const key = `${result.scenarioId}|${result.personaId || 'default'}`;
+      const key = `${result.scenario.id}|${result.persona.id || 'default'}`;
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -245,7 +255,7 @@ export class ChatMLExporter {
     scenarioIds: string[]
   ): Promise<string> {
     const filteredResults = execution.results.filter(r => 
-      scenarioIds.includes(r.scenarioId)
+      scenarioIds.includes(r.scenario.id)
     );
     
     const filteredExecution = {
@@ -264,7 +274,7 @@ export class ChatMLExporter {
     minScore: number = 0.8
   ): Promise<string> {
     const highQualityResults = execution.results.filter(r => 
-      r.evaluation.overall >= minScore && r.evaluation.passed
+      r.evaluation.overallScore >= minScore && r.evaluation.passed
     );
     
     const filteredExecution = {
@@ -290,6 +300,57 @@ export class ChatMLExporter {
     };
     
     return this.exportToChatML(filteredExecution);
+  }
+
+  /**
+   * Export and save to structured directory
+   */
+  async exportToDirectory(
+    execution: TestExecution,
+    outputDir: string,
+    options: {
+      splitByScenario?: boolean;
+      splitByQuality?: boolean;
+      minQuality?: number;
+    } = {}
+  ): Promise<string[]> {
+    const exportPaths: string[] = [];
+    
+    // Main export
+    const mainData = await this.exportToChatML(execution);
+    const mainPath = join(outputDir, 'exports', 'chatml-full.jsonl');
+    await fs.writeFile(mainPath, mainData, 'utf8');
+    exportPaths.push(mainPath);
+    
+    // Split by scenario if requested
+    if (options.splitByScenario) {
+      const scenarios = [...new Set(execution.results.map(r => r.scenario.id))];
+      
+      for (const scenarioId of scenarios) {
+        const scenarioData = await this.exportScenarios(execution, [scenarioId]);
+        const safeScenarioId = scenarioId.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const scenarioPath = join(outputDir, 'exports', `chatml-${safeScenarioId}.jsonl`);
+        await fs.writeFile(scenarioPath, scenarioData, 'utf8');
+        exportPaths.push(scenarioPath);
+      }
+    }
+    
+    // High quality export if requested
+    if (options.splitByQuality) {
+      const minScore = options.minQuality || 0.8;
+      const highQualityData = await this.exportHighQuality(execution, minScore);
+      const highQualityPath = join(outputDir, 'exports', `chatml-high-quality-${minScore}.jsonl`);
+      await fs.writeFile(highQualityPath, highQualityData, 'utf8');
+      exportPaths.push(highQualityPath);
+    }
+    
+    // Export statistics
+    const stats = this.getExportStats(mainData);
+    const statsPath = join(outputDir, 'exports', 'chatml-stats.json');
+    await fs.writeFile(statsPath, JSON.stringify(stats, null, 2), 'utf8');
+    exportPaths.push(statsPath);
+    
+    return exportPaths;
   }
 
   /**

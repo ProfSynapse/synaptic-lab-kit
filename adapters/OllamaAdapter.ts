@@ -5,7 +5,7 @@
  */
 
 import { BaseAdapter } from './BaseAdapter';
-import { LLMResponse, GenerateOptions, ModelInfo } from './types';
+import { LLMResponse, GenerateOptions, StreamOptions, ModelInfo, ProviderCapabilities, CostDetails } from './types';
 
 export interface OllamaConfig {
   baseUrl?: string; // Default: http://localhost:11434
@@ -41,19 +41,29 @@ export class OllamaAdapter extends BaseAdapter {
   private defaultModel: string;
 
   constructor(config: OllamaConfig = {}) {
-    // Call super() first with empty API key to avoid validation errors
-    super({ apiKey: '' });
+    // Calculate values before super() call
+    const baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    const defaultModel = config.model || 'llama3.1:8b';
     
-    this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    // Set dummy API key to avoid BaseAdapter warning
+    process.env.OLLAMA_API_KEY_TEMP = 'not-required';
+    super('OLLAMA_API_KEY_TEMP', defaultModel, baseUrl);
+    delete process.env.OLLAMA_API_KEY_TEMP;
+    
+    // Now we can safely set instance properties
+    this.baseUrl = baseUrl;
     this.timeout = config.timeout || 120000; // 2 minutes default
-    this.defaultModel = config.model || 'llama3.1:8b';
+    this.defaultModel = defaultModel;
     
-    // Override BaseAdapter properties after super() call
-    this.currentModel = this.defaultModel;
+    // Override with empty API key since Ollama doesn't need one
+    this.apiKey = '';
     this.config = {
       apiKey: '',
       baseUrl: this.baseUrl
     };
+
+    // Initialize cache for response caching
+    this.initializeCache();
   }
 
   // Override validation since Ollama doesn't need API keys
@@ -62,9 +72,9 @@ export class OllamaAdapter extends BaseAdapter {
   }
 
   /**
-   * Generate response from Ollama model
+   * Generate response from Ollama model (uncached)
    */
-  async generate(prompt: string, options: GenerateOptions = {}): Promise<LLMResponse> {
+  async generateUncached(prompt: string, options: GenerateOptions = {}): Promise<LLMResponse> {
     const startTime = Date.now();
     
     try {
@@ -112,21 +122,24 @@ export class OllamaAdapter extends BaseAdapter {
           totalTokens
         },
         model: response.model,
+        provider: 'ollama',
         finishReason: response.done ? 'stop' : 'length',
         cost: {
           totalCost: 0, // Local models are free!
+          inputCost: 0,
+          outputCost: 0,
           currency: 'USD',
           rateInputPerMillion: 0,
           rateOutputPerMillion: 0
         },
-        latency: endTime - startTime,
         metadata: {
           provider: 'ollama',
           model: response.model,
           totalDuration: response.total_duration,
           loadDuration: response.load_duration,
           promptEvalDuration: response.prompt_eval_duration,
-          evalDuration: response.eval_duration
+          evalDuration: response.eval_duration,
+          latency: endTime - startTime
         }
       };
 
@@ -143,7 +156,7 @@ export class OllamaAdapter extends BaseAdapter {
       ? `${prompt}\n\nPlease respond with valid JSON that matches this schema: ${JSON.stringify(schema, null, 2)}`
       : `${prompt}\n\nPlease respond with valid JSON.`;
 
-    const response = await this.generate(jsonPrompt, {
+    const response = await this.generateUncached(jsonPrompt, {
       ...options,
       temperature: 0.1 // Lower temperature for more consistent JSON
     });
@@ -169,8 +182,7 @@ export class OllamaAdapter extends BaseAdapter {
    */
   async generateStream(
     prompt: string, 
-    onChunk: (text: string) => void, 
-    options: GenerateOptions = {}
+    options: StreamOptions = {}
   ): Promise<LLMResponse> {
     const startTime = Date.now();
     
@@ -204,7 +216,11 @@ export class OllamaAdapter extends BaseAdapter {
         if (chunk.message?.content) {
           const content = chunk.message.content;
           fullResponse += content;
-          onChunk(content);
+          
+          // Call the onToken callback if provided
+          if (options.onToken) {
+            options.onToken(content);
+          }
         }
         
         if (chunk.done) {
@@ -218,37 +234,51 @@ export class OllamaAdapter extends BaseAdapter {
         throw new Error('No final response received from Ollama stream');
       }
 
-      const promptTokens = finalResponse.prompt_eval_count || this.estimateTokens(prompt);
-      const completionTokens = finalResponse.eval_count || this.estimateTokens(fullResponse);
+      const promptTokens = (finalResponse as OllamaResponse).prompt_eval_count || this.estimateTokens(prompt);
+      const completionTokens = (finalResponse as OllamaResponse).eval_count || this.estimateTokens(fullResponse);
       const totalTokens = promptTokens + completionTokens;
 
-      return {
+      const response: LLMResponse = {
         text: fullResponse,
         usage: {
           promptTokens,
           completionTokens,
           totalTokens
         },
-        model: finalResponse.model,
-        finishReason: finalResponse.done ? 'stop' : 'length',
+        model: (finalResponse as OllamaResponse).model,
+        provider: 'ollama',
+        finishReason: (finalResponse as OllamaResponse).done ? 'stop' : 'length',
         cost: {
           totalCost: 0,
+          inputCost: 0,
+          outputCost: 0,
           currency: 'USD',
           rateInputPerMillion: 0,
           rateOutputPerMillion: 0
         },
-        latency: endTime - startTime,
         metadata: {
           provider: 'ollama',
-          model: finalResponse.model,
-          totalDuration: finalResponse.total_duration,
-          loadDuration: finalResponse.load_duration,
-          promptEvalDuration: finalResponse.prompt_eval_duration,
-          evalDuration: finalResponse.eval_duration
+          model: (finalResponse as OllamaResponse).model,
+          totalDuration: (finalResponse as OllamaResponse).total_duration,
+          loadDuration: (finalResponse as OllamaResponse).load_duration,
+          promptEvalDuration: (finalResponse as OllamaResponse).prompt_eval_duration,
+          evalDuration: (finalResponse as OllamaResponse).eval_duration,
+          latency: endTime - startTime
         }
       };
 
+      // Call the onComplete callback if provided
+      if (options.onComplete) {
+        options.onComplete(response);
+      }
+
+      return response;
+
     } catch (error) {
+      // Call the onError callback if provided
+      if (options.onError) {
+        options.onError(error as Error);
+      }
       throw new Error(`Ollama streaming failed: ${(error as Error).message}`);
     }
   }
@@ -269,18 +299,26 @@ export class OllamaAdapter extends BaseAdapter {
         throw new Error(`Ollama API error (${response.status}): ${errorText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { models?: any[] };
       
       return data.models?.map((model: any) => ({
         id: model.name,
         name: model.name,
-        contextLength: model.details?.parameter_size ? 
+        contextWindow: model.details?.parameter_size ? 
           this.estimateContextLength(model.details.parameter_size) : 4096,
-        maxTokens: model.details?.parameter_size ? 
+        maxOutputTokens: model.details?.parameter_size ? 
           this.estimateContextLength(model.details.parameter_size) : 4096,
-        provider: 'ollama',
-        description: `${model.details?.family || 'Unknown'} model (${model.size} bytes)`,
-        created: model.modified_at
+        supportsJSON: true,
+        supportsImages: false,
+        supportsFunctions: false,
+        supportsStreaming: true,
+        supportsThinking: false,
+        pricing: {
+          inputPerMillion: 0,
+          outputPerMillion: 0,
+          currency: 'USD',
+          lastUpdated: new Date().toISOString()
+        }
       })) || [];
 
     } catch (error) {
@@ -320,15 +358,15 @@ export class OllamaAdapter extends BaseAdapter {
   /**
    * Get provider capabilities
    */
-  getCapabilities(): any {
+  getCapabilities(): ProviderCapabilities {
     return {
       supportsStreaming: true,
       supportsJSON: true,
-      supportsSystemMessages: true,
-      supportsTools: false,
-      supportsVision: false,
-      maxTokens: 32768,
-      contextWindow: 32768
+      supportsImages: false,
+      supportsFunctions: false,
+      supportsThinking: false,
+      maxContextWindow: 32768,
+      supportedFeatures: ['text', 'streaming', 'json', 'system_messages']
     };
   }
 
@@ -442,6 +480,22 @@ export class OllamaAdapter extends BaseAdapter {
   private estimateTokens(text: string): number {
     // Rough approximation: ~4 characters per token
     return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Get model pricing (Ollama is free)
+   */
+  async getModelPricing(modelId: string): Promise<CostDetails | null> {
+    // Ollama models are always free (local inference)
+    console.debug(`Getting pricing for Ollama model: ${modelId}`);
+    return {
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      currency: 'USD',
+      rateInputPerMillion: 0,
+      rateOutputPerMillion: 0
+    };
   }
 
   /**

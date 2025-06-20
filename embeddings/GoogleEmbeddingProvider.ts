@@ -38,7 +38,7 @@ export class GoogleEmbeddingProvider extends BaseEmbeddingProvider {
     });
   }
 
-  async embed(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+  async embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse> {
     const startTime = Date.now();
     
     try {
@@ -70,8 +70,8 @@ export class GoogleEmbeddingProvider extends BaseEmbeddingProvider {
         embeddings: [embedding],
         model: model,
         usage: {
-          promptTokens: this.countTokens(inputs[0]),
-          totalTokens: this.countTokens(inputs[0])
+          promptTokens: this.countTokens(inputs[0]!),
+          totalTokens: this.countTokens(inputs[0]!)
         },
         dimensions: embedding.length
       };
@@ -144,7 +144,7 @@ export class GoogleEmbeddingProvider extends BaseEmbeddingProvider {
     
     try {
       // Test with a simple embedding request
-      await this.embed({ input: 'test' });
+      await this.embedUncached({ input: 'test' });
       return true;
     } catch (error) {
       return false;
@@ -231,7 +231,7 @@ export class GoogleEmbeddingProvider extends BaseEmbeddingProvider {
     this.taskType = taskTypeMap[task];
     
     try {
-      return await this.embed({ input });
+      return await this.embedUncached({ input });
     } finally {
       this.taskType = originalTaskType;
     }
@@ -256,50 +256,68 @@ export class GoogleEmbeddingProvider extends BaseEmbeddingProvider {
    * Create provider with common configurations
    */
   static createEnglish(apiKey?: string): GoogleEmbeddingProvider {
-    return new GoogleEmbeddingProvider({
-      apiKey,
+    const config: Partial<GoogleEmbeddingConfig> = {
       model: 'text-embedding-004',
       taskType: 'RETRIEVAL_DOCUMENT'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new GoogleEmbeddingProvider(config);
   }
 
   static createMultilingual(apiKey?: string): GoogleEmbeddingProvider {
-    return new GoogleEmbeddingProvider({
-      apiKey,
+    const config: Partial<GoogleEmbeddingConfig> = {
       model: 'text-multilingual-embedding-002',
       taskType: 'RETRIEVAL_DOCUMENT'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new GoogleEmbeddingProvider(config);
   }
 
   static createForRetrieval(apiKey?: string, isQuery: boolean = false): GoogleEmbeddingProvider {
-    return new GoogleEmbeddingProvider({
-      apiKey,
+    const config: Partial<GoogleEmbeddingConfig> = {
       model: 'text-embedding-004',
       taskType: isQuery ? 'RETRIEVAL_QUERY' : 'RETRIEVAL_DOCUMENT'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new GoogleEmbeddingProvider(config);
   }
 
   static createForSimilarity(apiKey?: string): GoogleEmbeddingProvider {
-    return new GoogleEmbeddingProvider({
-      apiKey,
+    const config: Partial<GoogleEmbeddingConfig> = {
       model: 'text-embedding-004',
       taskType: 'SEMANTIC_SIMILARITY'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new GoogleEmbeddingProvider(config);
   }
 
   static createForClassification(apiKey?: string): GoogleEmbeddingProvider {
-    return new GoogleEmbeddingProvider({
-      apiKey,
+    const config: Partial<GoogleEmbeddingConfig> = {
       model: 'text-embedding-004',
       taskType: 'CLASSIFICATION'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new GoogleEmbeddingProvider(config);
   }
 
   static createForClustering(apiKey?: string): GoogleEmbeddingProvider {
-    return new GoogleEmbeddingProvider({
-      apiKey,
+    const config: Partial<GoogleEmbeddingConfig> = {
       model: 'text-embedding-004',
       taskType: 'CLUSTERING'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new GoogleEmbeddingProvider(config);
   }
 }

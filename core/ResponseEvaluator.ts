@@ -3,7 +3,7 @@
  * Evaluates LLM responses against defined criteria
  */
 
-import { EvaluationConfig, EvaluationResult, EvaluationCriterion, CustomEvaluator } from './types';
+import { EvaluationResult, EvaluationCriterion, CustomEvaluator } from './types';
 
 export class ResponseEvaluator {
   private criteria: EvaluationCriterion[] = [];
@@ -111,7 +111,7 @@ export class ResponseEvaluator {
     }
   }
 
-  private evaluateAccuracy(prompt: string, response: string, scenario?: any): number {
+  private evaluateAccuracy(_prompt: string, response: string, scenario?: any): number {
     // Simple accuracy evaluation
     if (!response || response.trim().length === 0) return 0;
     
@@ -190,12 +190,11 @@ export class ResponseEvaluator {
     return Math.min(score, 1.0);
   }
 
-  private evaluateCompleteness(prompt: string, response: string, scenario?: any): number {
+  private evaluateCompleteness(prompt: string, response: string, _scenario?: any): number {
     if (!response || response.trim().length === 0) return 0;
     
     // Check if response addresses the prompt comprehensively
     const promptQuestions = (prompt.match(/\?/g) || []).length;
-    const responseLength = response.length;
     
     // Basic completeness indicators
     const hasIntroduction = response.length > 50;
@@ -250,10 +249,10 @@ export class ResponseEvaluator {
 
   private async evaluateCustom(
     criterion: EvaluationCriterion,
-    prompt: string,
+    _prompt: string,
     response: string,
-    scenario?: any,
-    persona?: any
+    _scenario?: any,
+    _persona?: any
   ): Promise<number> {
     const evaluator = this.customEvaluators.find(e => e.id === criterion.evaluator);
     if (!evaluator) {

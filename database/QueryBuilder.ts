@@ -285,7 +285,7 @@ export class QueryBuilder {
       let query = this.db.getClient().from(this.tableName);
 
       // Apply select
-      query = query.select(this.selectColumns.join(', '));
+      let selectQuery = query.select(this.selectColumns.join(', '));
 
       // Apply where conditions
       for (const condition of this.whereConditions) {
@@ -296,35 +296,35 @@ export class QueryBuilder {
         
         switch (condition.operator) {
           case '=':
-            query = query.eq(condition.column, condition.value);
+            selectQuery = selectQuery.eq(condition.column, condition.value);
             break;
           case '!=':
-            query = query.neq(condition.column, condition.value);
+            selectQuery = selectQuery.neq(condition.column, condition.value);
             break;
           case '>':
-            query = query.gt(condition.column, condition.value);
+            selectQuery = selectQuery.gt(condition.column, condition.value);
             break;
           case '<':
-            query = query.lt(condition.column, condition.value);
+            selectQuery = selectQuery.lt(condition.column, condition.value);
             break;
           case '>=':
-            query = query.gte(condition.column, condition.value);
+            selectQuery = selectQuery.gte(condition.column, condition.value);
             break;
           case '<=':
-            query = query.lte(condition.column, condition.value);
+            selectQuery = selectQuery.lte(condition.column, condition.value);
             break;
           case 'LIKE':
-            query = query.like(condition.column, condition.value);
+            selectQuery = selectQuery.like(condition.column, condition.value);
             break;
           case 'ILIKE':
-            query = query.ilike(condition.column, condition.value);
+            selectQuery = selectQuery.ilike(condition.column, condition.value);
             break;
           case 'IN':
-            query = query.in(condition.column, condition.value);
+            selectQuery = selectQuery.in(condition.column, condition.value);
             break;
           case 'IS':
             if (condition.value === null) {
-              query = query.is(condition.column, null);
+              selectQuery = selectQuery.is(condition.column, null);
             }
             break;
         }
@@ -332,7 +332,7 @@ export class QueryBuilder {
 
       // Apply order by
       for (const order of this.orderByClause) {
-        query = query.order(order.column, { ascending: order.ascending });
+        selectQuery = selectQuery.order(order.column, { ascending: order.ascending });
       }
 
       // Apply limit and offset
@@ -340,10 +340,10 @@ export class QueryBuilder {
         const rangeEnd = this.offsetValue ? 
           this.offsetValue + this.limitValue - 1 : 
           this.limitValue - 1;
-        query = query.range(this.offsetValue || 0, rangeEnd);
+        selectQuery = selectQuery.range(this.offsetValue || 0, rangeEnd);
       }
 
-      const { data, error, count } = await query;
+      const { data, error, count } = await selectQuery;
 
       return {
         data,
@@ -517,8 +517,8 @@ export class QueryBuilder {
     cloned.selectColumns = [...this.selectColumns];
     cloned.whereConditions = [...this.whereConditions];
     cloned.orderByClause = [...this.orderByClause];
-    cloned.limitValue = this.limitValue;
-    cloned.offsetValue = this.offsetValue;
+    if (this.limitValue !== undefined) cloned.limitValue = this.limitValue;
+    if (this.offsetValue !== undefined) cloned.offsetValue = this.offsetValue;
     cloned.joinClauses = [...this.joinClauses];
     cloned.groupByColumns = [...this.groupByColumns];
     cloned.havingConditions = [...this.havingConditions];

@@ -21,8 +21,7 @@ import { GoogleEmbeddingProvider } from './GoogleEmbeddingProvider';
 import { MistralEmbeddingProvider } from './MistralEmbeddingProvider';
 import { 
   SupportedEmbeddingProvider, 
-  EmbeddingProviderError,
-  AnyEmbeddingConfig 
+ 
 } from './types';
 
 /**
@@ -41,10 +40,9 @@ export function createEmbeddingProvider(provider: SupportedEmbeddingProvider, co
     case 'mistral':
       return new MistralEmbeddingProvider(config);
     default:
-      throw new EmbeddingProviderError(
-        `Unsupported embedding provider: ${provider}`,
-        'factory'
-      );
+      const error = new Error(`Unsupported embedding provider: ${provider}`) as any;
+      error.type = 'INVALID_PROVIDER';
+      throw error;
   }
 }
 
@@ -85,7 +83,7 @@ export async function getAvailableEmbeddingProvidersWithKeys(): Promise<Array<{
       return result.value;
     } else {
       return {
-        provider: providers[index],
+        provider: providers[index] as SupportedEmbeddingProvider,
         available: false,
         error: result.reason?.message || 'Unknown error'
       };
@@ -182,9 +180,9 @@ export async function selectBestEmbeddingProvider(criteria?: {
   providerScores.sort((a, b) => b.score - a.score);
   const bestProvider = providerScores[0]?.provider;
 
-  if (bestProvider) {
+  if (bestProvider && providerScores[0]) {
     console.log(`🎯 Auto-selected embedding provider: ${bestProvider} (score: ${providerScores[0].score})`);
-    return createEmbeddingProvider(bestProvider);
+    return createEmbeddingProvider(bestProvider!);
   }
 
   return null;
@@ -305,11 +303,14 @@ export class EmbeddingManager {
     }
 
     try {
-      return await targetProvider.embed({
-        input,
-        model: options?.model,
-        dimensions: options?.dimensions
-      });
+      const embedRequest: any = { input };
+      if (options?.model !== undefined) {
+        embedRequest.model = options.model;
+      }
+      if (options?.dimensions !== undefined) {
+        embedRequest.dimensions = options.dimensions;
+      }
+      return await targetProvider.embed(embedRequest);
     } catch (error) {
       if (options?.fallback && this.providers.size > 1) {
         // Try other providers as fallback

@@ -5,7 +5,7 @@
  */
 
 import { SupabaseManager } from './SupabaseManager';
-import { SemanticSearchResult, VectorTableConfig } from './types';
+import { SemanticSearchResult } from './types';
 
 export class VectorManager {
   constructor(private db: SupabaseManager) {}
@@ -300,7 +300,7 @@ export class VectorManager {
 
       const vectors = data || [];
       const totalVectors = vectors.length;
-      const dimensionality = vectors.length > 0 ? vectors[0].embedding.length : 0;
+      const dimensionality = vectors.length > 0 ? vectors[0]?.embedding?.length || 0 : 0;
 
       // Calculate average pairwise similarity (sample)
       let totalSimilarity = 0;
@@ -309,10 +309,11 @@ export class VectorManager {
 
       for (let i = 0; i < sampleSize; i++) {
         for (let j = i + 1; j < sampleSize; j++) {
-          totalSimilarity += this.cosineSimilarity(
-            vectors[i].embedding,
-            vectors[j].embedding
-          );
+          const vec1 = vectors[i]?.embedding;
+          const vec2 = vectors[j]?.embedding;
+          if (vec1 && vec2) {
+            totalSimilarity += this.cosineSimilarity(vec1, vec2);
+          }
           comparisons++;
         }
       }
@@ -343,9 +344,11 @@ export class VectorManager {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      const aVal = a[i] || 0;
+      const bVal = b[i] || 0;
+      dotProduct += aVal * bVal;
+      normA += aVal * aVal;
+      normB += bVal * bVal;
     }
 
     if (normA === 0 || normB === 0) {

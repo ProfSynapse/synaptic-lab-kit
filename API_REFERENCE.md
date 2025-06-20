@@ -4,6 +4,18 @@
 
 This document contains the latest API information as of June 2025. Many providers have made significant changes since most AI training data cutoffs.
 
+## 🧪 For AI Assistants
+
+Use this reference when building testing pipelines. The Synaptic Lab Kit abstracts these APIs through unified adapters, so you focus on test logic while the framework handles provider differences.
+
+**Your Role**: Select appropriate models based on:
+- **Use case requirements** (accuracy vs speed vs cost)
+- **User budget constraints** (token pricing varies significantly)
+- **Feature needs** (thinking, multimodal, function calling)
+- **Context window requirements** (document length, conversation history)
+
+**User Role**: Execute via interactive CLI after you've built the pipeline.
+
 ## 🤖 LLM Providers
 
 ### OpenAI (Latest: Responses API)
@@ -12,11 +24,11 @@ This document contains the latest API information as of June 2025. Many provider
 
 **Base URL**: `https://api.openai.com/v1`
 
-**Latest Models (2025)**:
-- `gpt-4.1` - Capable for most situations
-- `gpt-4.1-mini` - Optimized for speed and efficiency
-- `o4-mini` - Fast thinking
-- `o3` - Slow thinking
+**Latest Models (June 2025)**:
+- `gpt-4o` - Most capable, multimodal
+- `gpt-4o-mini` - Fast and efficient  
+- `o1-preview` - Advanced reasoning
+- `o1-mini` - Fast reasoning
 
 **New Responses API Features**:
 ```typescript
@@ -38,6 +50,18 @@ const response = await openai.responses.create({
 
 **Environment**: `OPENAI_API_KEY=sk-...`
 
+**Framework Usage**:
+```typescript
+// AI Assistant: Configure in testing pipeline
+const adapter = new OpenAIAdapter({
+  model: 'gpt-4.1',        // Choose based on requirements
+  thinking: true,          // For complex reasoning tasks
+  web_search: false        // Disable for isolated testing
+});
+
+// User: Executes via CLI → "🧪 Run Interactive Test" → Select "OpenAI GPT-4.1"
+```
+
 **Documentation**: https://platform.openai.com/docs/api-reference/responses
 
 ---
@@ -48,9 +72,12 @@ const response = await openai.responses.create({
 
 **Base URL**: `https://generativelanguage.googleapis.com/v1`
 
-**Latest Models (2025)**:
-- `gemini-2.5-pro-experimental` - Expensive but more intelligent
-- `gemini-2.5-flash` - Cheaper but less intelligent
+**Latest Models (June 2025)**:
+- `gemini-2.5-pro-preview-06-05` - Latest preview, #1 on LMArena
+- `gemini-2.5-flash-preview-05-20` - Most efficient preview  
+- `gemini-2.0-flash-001` - Stable multimodal model
+- `gemini-1.5-pro-002` - Stable 2M token context
+- `gemini-1.5-flash-002` - Stable fast option
 
 **New SDK (google-genai v1.0)**:
 ```typescript
@@ -78,6 +105,18 @@ const response = await client.models.generateContent({
 
 **Environment**: `GOOGLE_API_KEY=AIza...`
 
+**Framework Usage**:
+```typescript
+// AI Assistant: Configure for multimodal testing
+const adapter = new GoogleAdapter({
+  model: 'gemini-2.5-flash',  // Cost-effective for most tests
+  thinking: true,             // Enable for reasoning evaluation
+  multimodal: true           // For image/video testing
+});
+
+// User: Executes via CLI → Provider selection → "Google Gemini 2.5"
+```
+
 **Documentation**: https://ai.google.dev/gemini-api/docs
 
 ---
@@ -88,10 +127,11 @@ const response = await client.models.generateContent({
 
 **Base URL**: `https://api.anthropic.com`
 
-**Latest Models (2025)**:
-- `claude-4-opus-latest` - Most capable model
-- `claude-4-sonnet-latest` - Balanced performance/speed
-- `claude-3.5-haiku-latest` - Fastest option
+**Latest Models (June 2025)**:
+- `claude-opus-4-20250514` - World's best coding model, $15/$75 per million tokens
+- `claude-sonnet-4-20250514` - Superior coding/reasoning, $3/$15 per million tokens, 64K output
+- `claude-3-5-sonnet-20241022` - Graduate-level reasoning (still available)
+- `claude-3-5-haiku-20241022` - Fastest option
 
 **New Features (2025)**:
 ```typescript
@@ -123,6 +163,19 @@ const response = await anthropic.messages.create({
 - `computer_20250124` - Enhanced computer use with new commands
 
 **Environment**: `ANTHROPIC_API_KEY=sk-ant-...`
+
+**Framework Usage**:
+```typescript
+// AI Assistant: Configure for sophisticated reasoning
+const adapter = new AnthropicAdapter({
+  model: 'claude-4-sonnet-latest',  // Balanced option
+  thinking: 'extended',             // For complex evaluation tasks
+  computer_use: false,              // Disable for testing isolation
+  web_search: false                 // Keep testing controlled
+});
+
+// User: Executes via CLI → "🧪 Run Interactive Test" → "Anthropic Claude 4"
+```
 
 **Documentation**: https://docs.anthropic.com/
 
@@ -169,6 +222,20 @@ const agentResponse = await client.agents.complete({
 
 **Environment**: `MISTRAL_API_KEY=...`
 
+**Framework Usage**:
+```typescript
+// AI Assistant: Configure for code testing
+const adapter = new MistralAdapter({
+  model: 'codestral-25.01',        // For code review testing
+  // OR
+  model: 'mistral-medium-3',       // For general testing
+  response_format: { type: 'json_object' }, // Structured evaluation
+  citations: true                   // For factual accuracy testing
+});
+
+// User: Executes via CLI → Provider selection → "Mistral (Code Specialized)"
+```
+
 **Documentation**: https://docs.mistral.ai/
 
 ---
@@ -211,6 +278,24 @@ const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
 - With ≥$10 credits: 1000 free requests/day
 
 **Environment**: `OPENROUTER_API_KEY=sk-or-...`
+
+**Framework Usage**:
+```typescript
+// AI Assistant: Configure for provider comparison testing
+const adapters = [
+  new OpenRouterAdapter({
+    model: 'anthropic/claude-3.5-sonnet',  // Standard model
+    variant: 'nitro'                       // Optimized for speed
+  }),
+  new OpenRouterAdapter({
+    model: 'openai/gpt-4-turbo',          // Different provider
+    variant: 'floor'                       // Optimized for cost
+  })
+];
+
+// Compare multiple providers through single interface
+// User: Executes via CLI → "🔄 Compare Providers" → Select models
+```
 
 **Documentation**: https://openrouter.ai/docs
 
@@ -446,3 +531,90 @@ WITH (lists = 100);
 - **Database**: Supabase with pgvector
 
 This reference should be updated quarterly as providers release new models and features.
+
+---
+
+## 🧪 AI Assistant Workflow Summary
+
+### Your Role: Technical Architect
+
+When users request testing pipelines, follow this pattern:
+
+**1. Analyze Requirements**
+```typescript
+// Identify: domain, criteria, scale, budget constraints
+if (userRequest.includes('customer support')) {
+  domain = 'customer-support';
+  criteria = ['accuracy', 'empathy', 'resolution'];
+  providers = ['gpt-4.1', 'claude-4-sonnet', 'gemini-2.5-flash'];
+}
+```
+
+**2. Select Optimal Providers**
+```typescript
+// Budget-conscious: Gemini 2.5 Flash
+const adapter = new GoogleAdapter({ model: 'gemini-2.5-flash' });
+
+// Reasoning-heavy: Claude 4 Sonnet  
+const adapter = new AnthropicAdapter({ model: 'claude-4-sonnet-latest' });
+
+// Comparison testing: Multiple via OpenRouter
+const adapters = [
+  new OpenRouterAdapter({ model: 'openai/gpt-4-turbo' }),
+  new OpenRouterAdapter({ model: 'anthropic/claude-3.5-sonnet' })
+];
+```
+
+**3. Build Complete Pipeline**
+```typescript
+// Full implementation ready for CLI execution
+export async function createCustomerSupportTest() {
+  const adapter = new GoogleAdapter({ model: 'gemini-2.5-flash' });
+  
+  const scenarios = await new ScenarioBuilder(adapter).build({
+    domain: 'customer-support',
+    criteria: ['accuracy', 'empathy'],
+    count: 20
+  });
+  
+  const personas = await new PersonaGenerator(adapter).generate({
+    types: ['frustrated_customer', 'confused_customer'],
+    count: 5
+  });
+  
+  return { adapter, scenarios, personas };
+}
+```
+
+**4. Provide User Instructions**
+```
+🧪 Lab Kit: Your customer support testing pipeline is ready!
+
+Components built:
+- ✅ 20 empathy-focused test scenarios  
+- ✅ 5 diverse customer personas
+- ✅ AI-powered evaluation for accuracy + empathy
+- ✅ Database schema for customer/order data
+
+To execute:
+1. Run: `npm run cli`
+2. Select: "🧪 Run Interactive Test" 
+3. Choose: "Google Gemini 2.5 Flash"
+4. Review: Generated reports in /reports
+
+For optimization:
+- Review failed cases in reports
+- Use "🎯 Optimize Prompts" menu option
+- Re-test with improved prompts
+```
+
+### User Role: Execution and Iteration
+
+Users operate your pipelines through the interactive CLI without needing technical knowledge of APIs, models, or configuration details.
+
+### Success Pattern
+
+✅ **AI Assistant**: Builds sophisticated testing architecture  
+✅ **User**: Executes and iterates through intuitive menus  
+✅ **Framework**: Handles all API complexity and provider differences  
+✅ **Results**: Professional reports + training data + optimization cycles

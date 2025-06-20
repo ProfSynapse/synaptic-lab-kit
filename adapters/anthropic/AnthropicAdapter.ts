@@ -5,15 +5,15 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { BaseAdapter } from './BaseAdapter';
+import { BaseAdapter } from '../BaseAdapter';
 import { 
   GenerateOptions, 
   StreamOptions, 
   LLMResponse, 
   ModelInfo, 
-  LLMProviderError,
-  ProviderCapabilities 
-} from './types';
+  ProviderCapabilities,
+  CostDetails
+} from '../types';
 
 export class AnthropicAdapter extends BaseAdapter {
   readonly name = 'anthropic';
@@ -21,16 +21,18 @@ export class AnthropicAdapter extends BaseAdapter {
   
   private client: Anthropic;
 
-  constructor() {
-    super('ANTHROPIC_API_KEY', 'claude-4-sonnet-20250124');
+  constructor(model?: string) {
+    super('ANTHROPIC_API_KEY', model || 'claude-3-5-sonnet-20241022');
     
     this.client = new Anthropic({
       apiKey: this.apiKey,
       baseURL: this.baseUrl
     });
+    
+    this.initializeCache();
   }
 
-  async generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
+  async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
     return this.withRetry(async () => {
       try {
         const messages = this.buildMessages(prompt, options?.systemPrompt);
@@ -112,14 +114,14 @@ export class AnthropicAdapter extends BaseAdapter {
           requestParams.system = systemMessage.content;
         }
 
-        const stream = await this.client.messages.create(requestParams);
+        const stream = await this.client.messages.create(requestParams as any);
         
         let fullText = '';
         let usage: any = undefined;
         let model = '';
         let stopReason = '';
 
-        for await (const chunk of stream) {
+        for await (const chunk of stream as any) {
           if (chunk.type === 'content_block_delta') {
             const deltaText = chunk.delta.text || '';
             if (deltaText) {
@@ -202,10 +204,22 @@ export class AnthropicAdapter extends BaseAdapter {
         supportsFunctions: true,
         supportsStreaming: true,
         supportsThinking: model.supportsThinking,
-        costPer1kTokens: this.getCostPer1kTokens(model.id)
+        costPer1kTokens: this.getCostPer1kTokens(model.id),
+        pricing: this.getCostPer1kTokens(model.id) ? {
+          inputPerMillion: this.getCostPer1kTokens(model.id)!.input * 1000,
+          outputPerMillion: this.getCostPer1kTokens(model.id)!.output * 1000,
+          currency: 'USD',
+          lastUpdated: new Date().toISOString()
+        } : {
+          inputPerMillion: 0,
+          outputPerMillion: 0,
+          currency: 'USD',
+          lastUpdated: new Date().toISOString()
+        }
       }));
     } catch (error) {
       this.handleError(error, 'listing models');
+      return [];
     }
   }
 
@@ -281,8 +295,10 @@ export class AnthropicAdapter extends BaseAdapter {
     return undefined;
   }
 
-  private mapStopReason(reason: string): string {
-    const reasonMap: Record<string, string> = {
+  private mapStopReason(reason: string | null): 'stop' | 'length' | 'tool_calls' | 'content_filter' {
+    if (!reason) return 'stop'; // Handle null case
+    
+    const reasonMap: Record<string, 'stop' | 'length' | 'tool_calls' | 'content_filter'> = {
       'end_turn': 'stop',
       'max_tokens': 'length',
       'tool_use': 'tool_calls',
@@ -310,5 +326,19 @@ export class AnthropicAdapter extends BaseAdapter {
       'claude-3.5-haiku-20241022': { input: 0.00025, output: 0.00125 }
     };
     return costs[modelId];
+  }
+
+  async getModelPricing(modelId: string): Promise<CostDetails | null> {
+    const costs = this.getCostPer1kTokens(modelId);
+    if (!costs) return null;
+    
+    return {
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      currency: 'USD',
+      rateInputPerMillion: costs.input * 1000, // Convert per 1k to per million
+      rateOutputPerMillion: costs.output * 1000
+    };
   }
 }

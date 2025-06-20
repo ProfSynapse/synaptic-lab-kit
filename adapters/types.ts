@@ -16,6 +16,12 @@ export interface GenerateOptions {
   tools?: Tool[];
   webSearch?: boolean;
   fileSearch?: boolean;
+  // Cache options
+  disableCache?: boolean;
+  cacheTTL?: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
 }
 
 export interface StreamOptions extends GenerateOptions {

@@ -1,20 +1,22 @@
 /**
  * Requesty AI Adapter for 150+ models via router
  * OpenAI-compatible interface with model routing
+ * Updated June 17, 2025 with latest Requesty router features
  */
 
-import { BaseAdapter } from './BaseAdapter';
-import { GenerateOptions, StreamOptions, LLMResponse, ModelInfo, ProviderCapabilities } from './types';
+import { BaseAdapter } from '../BaseAdapter';
+import { GenerateOptions, StreamOptions, LLMResponse, ModelInfo, ProviderCapabilities, CostDetails } from '../types';
+import { ModelRegistry } from '../ModelRegistry';
 
 export class RequestyAdapter extends BaseAdapter {
   readonly name = 'requesty';
   readonly baseUrl = 'https://router.requesty.ai/v1';
 
-  constructor() {
-    super('REQUESTY_API_KEY', 'gpt-4-turbo');
+  constructor(model?: string) {
+    super('REQUESTY_API_KEY', model || 'gpt-4-turbo');
   }
 
-  async generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
+  async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
     return this.withRetry(async () => {
       try {
         const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -22,6 +24,8 @@ export class RequestyAdapter extends BaseAdapter {
           headers: {
             ...this.buildHeaders(),
             'Authorization': `Bearer ${this.apiKey}`,
+            'HTTP-Referer': 'https://synaptic-lab-kit.com',
+            'X-Title': 'Synaptic Lab Kit',
             'User-Agent': 'Synaptic-Lab-Kit/1.0.0'
           },
           body: JSON.stringify({
@@ -40,13 +44,13 @@ export class RequestyAdapter extends BaseAdapter {
           throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         
-        return {
+        const usage = this.extractUsage(data);
+        const result: LLMResponse = {
           text: data.choices[0].message.content || '',
           model: data.model,
           provider: this.name,
-          usage: this.extractUsage(data),
           finishReason: data.choices[0].finish_reason,
           toolCalls: data.choices[0].message.tool_calls,
           metadata: {
@@ -54,6 +58,12 @@ export class RequestyAdapter extends BaseAdapter {
             analytics: data.analytics
           }
         };
+        
+        if (usage) {
+          result.usage = usage;
+        }
+        
+        return result;
       } catch (error) {
         this.handleError(error, 'generation');
       }
@@ -68,6 +78,8 @@ export class RequestyAdapter extends BaseAdapter {
           headers: {
             ...this.buildHeaders(),
             'Authorization': `Bearer ${this.apiKey}`,
+            'HTTP-Referer': 'https://synaptic-lab-kit.com',
+            'X-Title': 'Synaptic Lab Kit',
             'User-Agent': 'Synaptic-Lab-Kit/1.0.0'
           },
           body: JSON.stringify({
@@ -143,7 +155,7 @@ export class RequestyAdapter extends BaseAdapter {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       
       return data.data?.map((model: any) => ({
         id: model.id,
@@ -159,10 +171,10 @@ export class RequestyAdapter extends BaseAdapter {
           input: model.pricing.input * 1000,
           output: model.pricing.output * 1000
         } : undefined
-      })) || this.getDefaultModels();
+      })) || this.getRegistryModels();
     } catch (error) {
       console.warn('Failed to fetch Requesty models, using defaults:', error);
-      return this.getDefaultModels();
+      return this.getRegistryModels();
     }
   }
 
@@ -187,45 +199,27 @@ export class RequestyAdapter extends BaseAdapter {
     };
   }
 
-  private getDefaultModels(): ModelInfo[] {
-    // Default models available through Requesty
-    const models = [
-      {
-        id: 'gpt-4-turbo',
-        name: 'GPT-4 Turbo',
-        contextWindow: 128000,
-        features: ['json', 'functions', 'vision']
-      },
-      {
-        id: 'gpt-3.5-turbo',
-        name: 'GPT-3.5 Turbo',
-        contextWindow: 16385,
-        features: ['json', 'functions']
-      },
-      {
-        id: 'claude-3.5-sonnet',
-        name: 'Claude 3.5 Sonnet',
-        contextWindow: 200000,
-        features: ['json', 'functions', 'vision']
-      },
-      {
-        id: 'gemini-2.5-flash',
-        name: 'Gemini 2.5 Flash',
-        contextWindow: 1000000,
-        features: ['json', 'functions', 'vision']
-      }
-    ];
+  private getRegistryModels(): ModelInfo[] {
+    // Use centralized model registry
+    const requestyModels = ModelRegistry.getProviderModels('requesty');
+    return requestyModels.map(model => ModelRegistry.toModelInfo(model));
+  }
 
-    return models.map(model => ({
-      id: model.id,
-      name: model.name,
-      contextWindow: model.contextWindow,
-      maxOutputTokens: 4096,
-      supportsJSON: model.features.includes('json'),
-      supportsImages: model.features.includes('vision'),
-      supportsFunctions: model.features.includes('functions'),
-      supportsStreaming: true,
-      supportsThinking: false
-    }));
+
+  async getModelPricing(modelId: string): Promise<CostDetails | null> {
+    // Use centralized model registry for pricing
+    const modelSpec = ModelRegistry.findModel('requesty', modelId);
+    if (modelSpec) {
+      return {
+        inputCost: 0,
+        outputCost: 0,
+        totalCost: 0,
+        currency: 'USD',
+        rateInputPerMillion: modelSpec.inputCostPerMillion,
+        rateOutputPerMillion: modelSpec.outputCostPerMillion
+      };
+    }
+
+    return null;
   }
 }

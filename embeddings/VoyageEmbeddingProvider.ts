@@ -36,7 +36,7 @@ export class VoyageEmbeddingProvider extends BaseEmbeddingProvider {
     });
   }
 
-  async embed(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+  async embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse> {
     const startTime = Date.now();
     
     try {
@@ -104,7 +104,7 @@ export class VoyageEmbeddingProvider extends BaseEmbeddingProvider {
     
     try {
       // Test with a simple embedding request
-      await this.embed({ input: 'test' });
+      await this.embedUncached({ input: 'test' });
       return true;
     } catch (error) {
       return false;
@@ -228,50 +228,68 @@ export class VoyageEmbeddingProvider extends BaseEmbeddingProvider {
    * Create provider with common configurations
    */
   static createGeneral(apiKey?: string): VoyageEmbeddingProvider {
-    return new VoyageEmbeddingProvider({
-      apiKey,
+    const config: Partial<VoyageEmbeddingConfig> = {
       model: 'voyage-3',
       inputType: 'document'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new VoyageEmbeddingProvider(config);
   }
 
   static createLite(apiKey?: string): VoyageEmbeddingProvider {
-    return new VoyageEmbeddingProvider({
-      apiKey,
+    const config: Partial<VoyageEmbeddingConfig> = {
       model: 'voyage-3-lite',
       inputType: 'document'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new VoyageEmbeddingProvider(config);
   }
 
   static createFinance(apiKey?: string): VoyageEmbeddingProvider {
-    return new VoyageEmbeddingProvider({
-      apiKey,
+    const config: Partial<VoyageEmbeddingConfig> = {
       model: 'voyage-finance-2',
       inputType: 'document'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new VoyageEmbeddingProvider(config);
   }
 
   static createCode(apiKey?: string): VoyageEmbeddingProvider {
-    return new VoyageEmbeddingProvider({
-      apiKey,
+    const config: Partial<VoyageEmbeddingConfig> = {
       model: 'voyage-code-2',
       inputType: 'document'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new VoyageEmbeddingProvider(config);
   }
 
   static createMultilingual(apiKey?: string): VoyageEmbeddingProvider {
-    return new VoyageEmbeddingProvider({
-      apiKey,
+    const config: Partial<VoyageEmbeddingConfig> = {
       model: 'voyage-multilingual-2',
       inputType: 'document'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new VoyageEmbeddingProvider(config);
   }
 
   static createLegal(apiKey?: string): VoyageEmbeddingProvider {
-    return new VoyageEmbeddingProvider({
-      apiKey,
+    const config: Partial<VoyageEmbeddingConfig> = {
       model: 'voyage-law-2',
       inputType: 'document'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new VoyageEmbeddingProvider(config);
   }
 }

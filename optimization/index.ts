@@ -4,6 +4,8 @@
  */
 
 export { PromptOptimizer } from './PromptOptimizer';
+export { HuggingFaceDatasetLoader } from './HuggingFaceDatasetLoader';
+export { HuggingFaceModelLoader } from './HuggingFaceModelLoader';
 export * from './types';
 
 // Additional optimization strategies could be added here

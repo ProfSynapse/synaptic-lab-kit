@@ -62,14 +62,16 @@ export class PersonaGenerator {
     for (let i = 0; i < requirements.count; i++) {
       const typeIndex = i % types.length;
       const type = types[typeIndex];
+      if (!type) continue;
       const template = this.templates[type] || this.templates.novice;
+      if (!template) continue;
       
       const persona: PersonaConfig = {
         id: `${type}_${i + 1}`,
         name: `${template.name} ${i + 1}`,
         description: this.customizeDescription(template.description || '', requirements.domain),
         background: this.customizeBackground(template.background || '', requirements.domain),
-        preferences: this.generatePreferences(type, requirements.domain),
+        preferences: this.generatePreferences(type, requirements.domain || ''),
         behaviorPatterns: template.behaviorPatterns || {
           decisionSpeed: 'thoughtful',
           riskTolerance: 'medium',
@@ -173,6 +175,10 @@ export class PersonaGenerator {
   }): PersonaConfig {
     const type = config.type || 'novice';
     const template = this.templates[type] || this.templates.novice;
+    
+    if (!template) {
+      throw new Error('No template available for persona generation');
+    }
     
     return {
       id: `custom_${Date.now()}`,

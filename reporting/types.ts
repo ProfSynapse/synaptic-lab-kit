@@ -86,6 +86,7 @@ export interface ReportMetadata {
   title: string;
   author?: string;
   description?: string;
+  outputPath?: string;
 }
 
 export interface ReportExports {

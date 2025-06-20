@@ -12,6 +12,7 @@ export * from './types';
  * Factory function for creating report generators
  */
 import { ReportGenerator } from './ReportGenerator';
+import { ChatMLExporter } from './ChatMLExporter';
 import { ReportConfig, ReportFormat } from './types';
 
 export function createReportGenerator(): ReportGenerator {

@@ -19,13 +19,21 @@ export {
   type ValidationResult, 
   type SchemaValidationRule 
 } from './ValidationUtils';
+export {
+  CacheManager,
+  LRUCache,
+  FileCache,
+  BaseCache,
+  type CacheEntry,
+  type CacheConfig,
+  type CacheMetrics
+} from './CacheManager';
 
 /**
  * Quick setup function for basic lab kit initialization
  */
 import { ConfigManager } from './ConfigManager';
-import { Logger } from './Logger';
-import { ValidationUtils } from './ValidationUtils';
+import { Logger, createLogger } from './Logger';
 
 export interface QuickSetupOptions {
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -107,7 +115,7 @@ export function validateEnvironment(): {
 
   // Check Node.js version
   const nodeVersion = process.version;
-  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0] || '0');
   
   if (majorVersion < 18) {
     result.errors.push(`Node.js version ${nodeVersion} is not supported. Please use Node.js 18 or higher.`);

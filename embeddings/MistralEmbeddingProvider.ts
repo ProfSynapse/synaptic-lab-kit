@@ -34,7 +34,7 @@ export class MistralEmbeddingProvider extends BaseEmbeddingProvider {
     });
   }
 
-  async embed(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+  async embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse> {
     const startTime = Date.now();
     
     try {
@@ -97,7 +97,7 @@ export class MistralEmbeddingProvider extends BaseEmbeddingProvider {
     
     try {
       // Test with a simple embedding request
-      await this.embed({ input: 'test' });
+      await this.embedUncached({ input: 'test' });
       return true;
     } catch (error) {
       return false;
@@ -189,9 +189,12 @@ export class MistralEmbeddingProvider extends BaseEmbeddingProvider {
    * Create provider with common configurations
    */
   static createDefault(apiKey?: string): MistralEmbeddingProvider {
-    return new MistralEmbeddingProvider({
-      apiKey,
+    const config: Partial<MistralEmbeddingConfig> = {
       model: 'mistral-embed'
-    });
+    };
+    if (apiKey !== undefined) {
+      config.apiKey = apiKey;
+    }
+    return new MistralEmbeddingProvider(config);
   }
 }

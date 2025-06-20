@@ -45,15 +45,20 @@ export class ScenarioBuilder {
     
     // Generate scenarios
     for (let i = 0; i < count; i++) {
-      const scenario = await this.createScenario({
+      const scenarioConfig: Partial<TestScenario> & { id: string } = {
         ...template,
         id: `${description.domain}_${i + 1}`,
         description: this.enhanceDescription(template.description || '', description.description, i),
         evaluationCriteria: description.criteria.length > 0 ? description.criteria : template.evaluationCriteria || [],
-        context: description.context,
         difficulty: this.assignDifficulty(i, count, description.difficulties)
-      });
-      
+      };
+
+      // Add context only if it exists
+      if (description.context) {
+        scenarioConfig.context = description.context;
+      }
+
+      const scenario = await this.createScenario(scenarioConfig);
       scenarios.push(scenario);
     }
     
@@ -71,19 +76,29 @@ export class ScenarioBuilder {
       userInput: config.userInput || this.generateUserInput(config),
       expectedBehavior: config.expectedBehavior || 'Provide appropriate response',
       evaluationCriteria: config.evaluationCriteria || ['accuracy', 'relevance'],
-      context: config.context,
       difficulty: config.difficulty || 'medium',
       tags: config.tags || [config.category || 'general'],
       metadata: config.metadata || {},
       inputs: config.inputs || [{
         id: 'default',
         prompt: config.userInput || this.generateUserInput(config),
-        context: config.context
-      }],
-      expectedOutputs: config.expectedOutputs,
-      instructions: config.instructions,
-      data: config.data
+        ...(config.context && { context: JSON.stringify(config.context) })
+      }]
     };
+
+    // Add optional properties only if they exist
+    if (config.context) {
+      scenario.context = config.context;
+    }
+    if (config.expectedOutputs) {
+      scenario.expectedOutputs = config.expectedOutputs;
+    }
+    if (config.instructions) {
+      scenario.instructions = config.instructions;
+    }
+    if (config.data) {
+      scenario.data = config.data;
+    }
     
     return scenario;
   }
@@ -102,11 +117,15 @@ export class ScenarioBuilder {
     
     // Generate variations
     for (let i = 1; i < variations; i++) {
-      inputs.push({
+      const input: ScenarioInput = {
         id: `variation_${i}`,
-        prompt: this.createVariation(basePrompt, i),
-        metadata: { variationType: 'linguistic', variationIndex: i }
-      });
+        prompt: this.createVariation(basePrompt, i)
+      };
+      
+      // Add metadata for variations
+      input.metadata = { variationType: 'linguistic', variationIndex: i };
+      
+      inputs.push(input);
     }
     
     return inputs;
@@ -125,44 +144,48 @@ export class ScenarioBuilder {
     
     if (config.exactMatches) {
       config.exactMatches.forEach((text, index) => {
-        outputs.push({
+        const output: ExpectedOutput = {
           id: `exact_${index}`,
           type: 'exact',
-          value: text,
-          description: `Must contain exact text: ${text}`
-        });
+          value: text
+        };
+        output.description = `Must contain exact text: ${text}`;
+        outputs.push(output);
       });
     }
     
     if (config.containsText) {
       config.containsText.forEach((text, index) => {
-        outputs.push({
+        const output: ExpectedOutput = {
           id: `contains_${index}`,
           type: 'contains',
-          value: text,
-          description: `Must contain: ${text}`
-        });
+          value: text
+        };
+        output.description = `Must contain: ${text}`;
+        outputs.push(output);
       });
     }
     
     if (config.patterns) {
       config.patterns.forEach((pattern, index) => {
-        outputs.push({
+        const output: ExpectedOutput = {
           id: `pattern_${index}`,
           type: 'pattern',
-          value: pattern,
-          description: `Must match pattern: ${pattern}`
-        });
+          value: pattern
+        };
+        output.description = `Must match pattern: ${pattern}`;
+        outputs.push(output);
       });
     }
     
     if (config.jsonSchema) {
-      outputs.push({
+      const output: ExpectedOutput = {
         id: 'json_schema',
         type: 'json_schema',
-        value: config.jsonSchema,
-        description: 'Must conform to JSON schema'
-      });
+        value: config.jsonSchema
+      };
+      output.description = 'Must conform to JSON schema';
+      outputs.push(output);
     }
     
     return outputs;
@@ -179,30 +202,38 @@ export class ScenarioBuilder {
   }): TestScenario {
     const template = this.getTemplate(domain);
     
-    return {
+    const scenario: TestScenario = {
       id: `${domain}_${Date.now()}`,
       description: `${domain} scenario: ${config.userQuery}`,
       category: domain as any,
       userInput: config.userQuery,
       expectedBehavior: template.expectedBehavior || 'Provide appropriate response',
       evaluationCriteria: template.evaluationCriteria || ['accuracy', 'relevance'],
-      context: config.context,
       difficulty: config.difficulty || 'medium',
       tags: [domain],
       metadata: { domain, generatedAt: new Date().toISOString() },
       inputs: [{
         id: 'primary',
         prompt: config.userQuery,
-        context: JSON.stringify(config.context)
-      }],
-      data: config.expectedData
+        ...(config.context && { context: JSON.stringify(config.context) })
+      }]
     };
+
+    // Add optional properties only if they exist
+    if (config.context) {
+      scenario.context = config.context;
+    }
+    if (config.expectedData) {
+      scenario.data = config.expectedData;
+    }
+
+    return scenario;
   }
 
   // Private helper methods
 
   private getTemplate(domain: string): Partial<TestScenario> {
-    return this.templates[domain] || this.templates['customer-service'];
+    return this.templates[domain] || this.templates['customer-service'] || {};
   }
 
   private enhanceDescription(baseDescription: string, userDescription: string, index: number): string {
@@ -212,7 +243,7 @@ export class ScenarioBuilder {
       `Variation ${index + 1}: ${userDescription} focusing on ${baseDescription.toLowerCase()}`
     ];
     
-    return variations[index % variations.length];
+    return variations[index % variations.length] || `Scenario ${index + 1}: ${userDescription}`;
   }
 
   private generateUserInput(config: Partial<TestScenario>): string {
@@ -245,8 +276,8 @@ export class ScenarioBuilder {
       ]
     };
     
-    const categoryPrompts = prompts[category] || prompts['customer-service'];
-    return categoryPrompts[Math.floor(Math.random() * categoryPrompts.length)];
+    const categoryPrompts = prompts[category] || prompts['customer-service'] || ['Please provide assistance'];
+    return categoryPrompts[Math.floor(Math.random() * categoryPrompts.length)] || 'Please provide assistance';
   }
 
   private assignDifficulty(

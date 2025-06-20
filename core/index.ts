@@ -31,20 +31,32 @@ import {
   TestExecution, 
   TestDescription, 
   PersonaRequirements,
-  TestFrameworkError
 } from './types';
 
 export class SynapticLabKit {
   private testRunner: TestRunner;
-  private personaGenerator: PersonaGenerator;
-  private scenarioBuilder: ScenarioBuilder;
+  private _personaGenerator: PersonaGenerator;
+  private _scenarioBuilder: ScenarioBuilder;
   private database?: DatabaseManager;
   private initialized: boolean = false;
 
   constructor() {
     this.testRunner = new TestRunner();
-    this.personaGenerator = new PersonaGenerator();
-    this.scenarioBuilder = new ScenarioBuilder();
+    this._personaGenerator = new PersonaGenerator();
+    this._scenarioBuilder = new ScenarioBuilder();
+  }
+
+  // Public getters for CLI access
+  get personaGenerator() {
+    return this._personaGenerator;
+  }
+
+  get scenarioBuilder() {
+    return this._scenarioBuilder;
+  }
+
+  get responseEvaluator() {
+    return (this.testRunner as any).responseEvaluator;
   }
 
   /**
@@ -70,26 +82,23 @@ export class SynapticLabKit {
       // Add custom templates if provided
       if (config?.customTemplates?.personas) {
         Object.entries(config.customTemplates.personas).forEach(([name, template]) => {
-          this.personaGenerator.addTemplate(name, template);
+          this._personaGenerator.addTemplate(name, template);
         });
       }
       
       if (config?.customTemplates?.scenarios) {
         Object.entries(config.customTemplates.scenarios).forEach(([name, template]) => {
-          this.scenarioBuilder.addTemplate(name, template);
+          this._scenarioBuilder.addTemplate(name, template);
         });
       }
       
       this.initialized = true;
       console.log('✅ Synaptic Lab Kit initialized successfully');
     } catch (error) {
-      throw new TestFrameworkError(
-        `Failed to initialize Synaptic Lab Kit: ${(error as Error).message}`,
-        'INIT_FAILED',
-        'system',
-        { config },
-        false
-      );
+      const err = new Error(`Failed to initialize Synaptic Lab Kit: ${(error as Error).message}`) as any;
+      err.type = 'INIT_FAILED';
+      err.details = { config };
+      throw err;
     }
   }
 
@@ -117,12 +126,12 @@ export class SynapticLabKit {
     try {
       // Generate scenarios
       const scenarios = description.scenarios ? 
-        await this.scenarioBuilder.buildScenarios(description.scenarios) :
+        await this._scenarioBuilder.buildScenarios(description.scenarios) :
         [];
       
       // Generate personas
       const personas = description.personas ? 
-        await this.personaGenerator.generatePersonas(description.personas) :
+        await this._personaGenerator.generatePersonas(description.personas) :
         [];
       
       // Build evaluation config
@@ -154,13 +163,10 @@ export class SynapticLabKit {
       
       return config;
     } catch (error) {
-      throw new TestFrameworkError(
-        `Failed to create test configuration: ${(error as Error).message}`,
-        'CONFIG_CREATION_FAILED',
-        'config',
-        { description },
-        true
-      );
+      const err = new Error(`Failed to create test configuration: ${(error as Error).message}`) as any;
+      err.type = 'CONFIG_CREATION_FAILED';
+      err.details = { description };
+      throw err;
     }
   }
 
@@ -173,13 +179,10 @@ export class SynapticLabKit {
     try {
       return await this.testRunner.startTest(config);
     } catch (error) {
-      throw new TestFrameworkError(
-        `Failed to run test: ${(error as Error).message}`,
-        'TEST_EXECUTION_FAILED',
-        'execution',
-        { config },
-        true
-      );
+      const err = new Error(`Failed to run test: ${(error as Error).message}`) as any;
+      err.type = 'TEST_EXECUTION_FAILED';
+      err.details = { config };
+      throw err;
     }
   }
 
@@ -301,14 +304,15 @@ export class SynapticLabKit {
           testRunner: !!this.testRunner,
           personaGenerator: !!this.personaGenerator,
           scenarioBuilder: !!this.scenarioBuilder
-        }
+        },
+        database: null as any
       }
     };
     
     if (this.database) {
-      const dbHealth = await this.database.healthCheck();
-      health.database = dbHealth.overall;
-      health.details.database = dbHealth.details;
+      const dbHealth = await this.database.healthCheck() as any;
+      health.database = dbHealth.connected || false;
+      health.details.database = dbHealth;
     }
     
     return health;
@@ -318,13 +322,10 @@ export class SynapticLabKit {
 
   private ensureInitialized(): void {
     if (!this.initialized) {
-      throw new TestFrameworkError(
-        'Synaptic Lab Kit not initialized. Call initialize() first.',
-        'NOT_INITIALIZED',
-        'system',
-        {},
-        true
-      );
+      const err = new Error('Synaptic Lab Kit not initialized. Call initialize() first.') as any;
+      err.type = 'NOT_INITIALIZED';
+      err.details = {};
+      throw err;
     }
   }
 }

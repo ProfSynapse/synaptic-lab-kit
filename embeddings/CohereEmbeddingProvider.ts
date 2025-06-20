@@ -38,7 +38,7 @@ export class CohereEmbeddingProvider extends BaseEmbeddingProvider {
     });
   }
 
-  async embed(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+  async embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse> {
     const startTime = Date.now();
     
     try {
@@ -105,7 +105,7 @@ export class CohereEmbeddingProvider extends BaseEmbeddingProvider {
     
     try {
       // Test with a simple embedding request
-      await this.embed({ input: 'test' });
+      await this.embedUncached({ input: 'test' });
       return true;
     } catch (error) {
       return false;
@@ -248,58 +248,65 @@ export class CohereEmbeddingProvider extends BaseEmbeddingProvider {
    * Create provider with common configurations
    */
   static createEnglish(apiKey?: string): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-english-v3.0',
       inputType: 'search_document'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 
   static createMultilingual(apiKey?: string): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-multilingual-v3.0',
       inputType: 'search_document'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 
   static createEnglishLight(apiKey?: string): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-english-light-v3.0',
       inputType: 'search_document'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 
   static createMultilingualLight(apiKey?: string): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-multilingual-light-v3.0',
       inputType: 'search_document'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 
   static createForSearch(apiKey?: string, isQuery: boolean = false): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-english-v3.0',
       inputType: isQuery ? 'search_query' : 'search_document'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 
   static createForClassification(apiKey?: string): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-english-v3.0',
       inputType: 'classification'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 
   static createForClustering(apiKey?: string): CohereEmbeddingProvider {
-    return new CohereEmbeddingProvider({
-      apiKey,
+    const config: Partial<CohereEmbeddingConfig> = {
       model: 'embed-english-v3.0',
       inputType: 'clustering'
-    });
+    };
+    if (apiKey !== undefined) config.apiKey = apiKey;
+    return new CohereEmbeddingProvider(config);
   }
 }

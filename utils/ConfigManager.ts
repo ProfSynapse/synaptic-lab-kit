@@ -83,6 +83,31 @@ export interface LabKitConfig {
     enableFileLogging: boolean;
     logDirectory: string;
   };
+
+  // Cache configuration
+  cache: {
+    llm: {
+      enabled: boolean;
+      type: 'memory' | 'file';
+      maxSize: number;
+      defaultTTL: number; // in milliseconds
+      persistToDisk: boolean;
+      cacheDir: string;
+    };
+    embeddings: {
+      enabled: boolean;
+      type: 'memory' | 'file';
+      maxSize: number;
+      defaultTTL: number;
+      persistToDisk: boolean;
+      cacheDir: string;
+    };
+    questions: {
+      enabled: boolean;
+      defaultTTL: number;
+      cacheDir: string;
+    };
+  };
 }
 
 export class ConfigManager {
@@ -185,6 +210,55 @@ export class ConfigManager {
     return !!(provider.apiKey);
   }
 
+  /**
+   * Get cache configuration
+   */
+  getCacheConfig(): LabKitConfig['cache'] {
+    return this.config.cache;
+  }
+
+  /**
+   * Get LLM cache configuration
+   */
+  getLLMCacheConfig() {
+    return this.config.cache.llm;
+  }
+
+  /**
+   * Get embeddings cache configuration
+   */
+  getEmbeddingsCacheConfig() {
+    return this.config.cache.embeddings;
+  }
+
+  /**
+   * Get questions cache configuration
+   */
+  getQuestionsCacheConfig() {
+    return this.config.cache.questions;
+  }
+
+  /**
+   * Check if LLM caching is enabled
+   */
+  isLLMCacheEnabled(): boolean {
+    return this.config.cache.llm.enabled;
+  }
+
+  /**
+   * Check if embeddings caching is enabled
+   */
+  isEmbeddingsCacheEnabled(): boolean {
+    return this.config.cache.embeddings.enabled;
+  }
+
+  /**
+   * Check if questions caching is enabled
+   */
+  isQuestionsCacheEnabled(): boolean {
+    return this.config.cache.questions.enabled;
+  }
+
   // Private methods
 
   private loadDefaultConfig(): LabKitConfig {
@@ -227,6 +301,29 @@ export class ConfigManager {
         level: 'info',
         enableFileLogging: false,
         logDirectory: './logs'
+      },
+      cache: {
+        llm: {
+          enabled: true,
+          type: 'memory',
+          maxSize: 1000,
+          defaultTTL: 3600000, // 1 hour
+          persistToDisk: false,
+          cacheDir: '.cache/llm'
+        },
+        embeddings: {
+          enabled: true,
+          type: 'memory',
+          maxSize: 10000,
+          defaultTTL: 604800000, // 7 days
+          persistToDisk: false,
+          cacheDir: '.cache/embeddings'
+        },
+        questions: {
+          enabled: true,
+          defaultTTL: 86400000, // 24 hours
+          cacheDir: '.cache/questions'
+        }
       }
     };
   }
@@ -281,6 +378,55 @@ export class ConfigManager {
     if (process.env.LAB_KIT_LOG_DIRECTORY) {
       this.config.logging.logDirectory = process.env.LAB_KIT_LOG_DIRECTORY;
     }
+
+    // Cache configuration
+    if (process.env.LAB_KIT_CACHE_LLM_ENABLED) {
+      this.config.cache.llm.enabled = process.env.LAB_KIT_CACHE_LLM_ENABLED === 'true';
+    }
+    if (process.env.LAB_KIT_CACHE_LLM_TYPE) {
+      this.config.cache.llm.type = process.env.LAB_KIT_CACHE_LLM_TYPE as 'memory' | 'file';
+    }
+    if (process.env.LAB_KIT_CACHE_LLM_MAX_SIZE) {
+      this.config.cache.llm.maxSize = parseInt(process.env.LAB_KIT_CACHE_LLM_MAX_SIZE);
+    }
+    if (process.env.LAB_KIT_CACHE_LLM_TTL) {
+      this.config.cache.llm.defaultTTL = parseInt(process.env.LAB_KIT_CACHE_LLM_TTL);
+    }
+    if (process.env.LAB_KIT_CACHE_LLM_PERSIST) {
+      this.config.cache.llm.persistToDisk = process.env.LAB_KIT_CACHE_LLM_PERSIST === 'true';
+    }
+    if (process.env.LAB_KIT_CACHE_LLM_DIR) {
+      this.config.cache.llm.cacheDir = process.env.LAB_KIT_CACHE_LLM_DIR;
+    }
+
+    if (process.env.LAB_KIT_CACHE_EMBEDDINGS_ENABLED) {
+      this.config.cache.embeddings.enabled = process.env.LAB_KIT_CACHE_EMBEDDINGS_ENABLED === 'true';
+    }
+    if (process.env.LAB_KIT_CACHE_EMBEDDINGS_TYPE) {
+      this.config.cache.embeddings.type = process.env.LAB_KIT_CACHE_EMBEDDINGS_TYPE as 'memory' | 'file';
+    }
+    if (process.env.LAB_KIT_CACHE_EMBEDDINGS_MAX_SIZE) {
+      this.config.cache.embeddings.maxSize = parseInt(process.env.LAB_KIT_CACHE_EMBEDDINGS_MAX_SIZE);
+    }
+    if (process.env.LAB_KIT_CACHE_EMBEDDINGS_TTL) {
+      this.config.cache.embeddings.defaultTTL = parseInt(process.env.LAB_KIT_CACHE_EMBEDDINGS_TTL);
+    }
+    if (process.env.LAB_KIT_CACHE_EMBEDDINGS_PERSIST) {
+      this.config.cache.embeddings.persistToDisk = process.env.LAB_KIT_CACHE_EMBEDDINGS_PERSIST === 'true';
+    }
+    if (process.env.LAB_KIT_CACHE_EMBEDDINGS_DIR) {
+      this.config.cache.embeddings.cacheDir = process.env.LAB_KIT_CACHE_EMBEDDINGS_DIR;
+    }
+
+    if (process.env.LAB_KIT_CACHE_QUESTIONS_ENABLED) {
+      this.config.cache.questions.enabled = process.env.LAB_KIT_CACHE_QUESTIONS_ENABLED === 'true';
+    }
+    if (process.env.LAB_KIT_CACHE_QUESTIONS_TTL) {
+      this.config.cache.questions.defaultTTL = parseInt(process.env.LAB_KIT_CACHE_QUESTIONS_TTL);
+    }
+    if (process.env.LAB_KIT_CACHE_QUESTIONS_DIR) {
+      this.config.cache.questions.cacheDir = process.env.LAB_KIT_CACHE_QUESTIONS_DIR;
+    }
   }
 
   private loadFileConfig(): void {
@@ -326,13 +472,17 @@ export class ConfigManager {
     
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
+      if (!key) continue;
       if (!(key in current)) {
         current[key] = {};
       }
       current = current[key];
     }
     
-    current[keys[keys.length - 1]] = value;
+    const lastKey = keys[keys.length - 1];
+    if (lastKey) {
+      current[lastKey] = value;
+    }
   }
 
   private mergeConfigs(base: any, override: any): any {

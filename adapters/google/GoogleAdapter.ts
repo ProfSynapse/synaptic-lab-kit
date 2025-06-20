@@ -1,36 +1,36 @@
 /**
  * Google Gemini Adapter with 2.5 models and thinking capabilities
  * Supports latest Gemini features including thinking mode
- * Based on 2025 API documentation
+ * Based on 2025 API documentation from Google AI Studio
+ * Updated June 17, 2025 with latest model availability and pricing
  */
 
-import { genai } from '@google/genai';
-import { BaseAdapter } from './BaseAdapter';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { BaseAdapter } from '../BaseAdapter';
 import { 
   GenerateOptions, 
   StreamOptions, 
   LLMResponse, 
   ModelInfo, 
-  LLMProviderError,
-  ProviderCapabilities 
-} from './types';
+  ProviderCapabilities,
+  CostDetails
+} from '../types';
+import { ModelRegistry } from '../ModelRegistry';
 
 export class GoogleAdapter extends BaseAdapter {
   readonly name = 'google';
   readonly baseUrl = 'https://generativelanguage.googleapis.com/v1';
   
-  private client: GoogleGenAI;
+  private client: GoogleGenerativeAI;
 
-  constructor() {
-    super('GOOGLE_API_KEY', 'gemini-2.5-flash');
+  constructor(model?: string) {
+    super('GOOGLE_API_KEY', model || 'gemini-2.5-flash');
     
-    this.client = new GoogleGenAI({ 
-      apiKey: this.apiKey,
-      baseURL: this.baseUrl
-    });
+    this.client = new GoogleGenerativeAI(this.apiKey);
+    this.initializeCache();
   }
 
-  async generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
+  async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
     return this.withRetry(async () => {
       try {
         const model = this.client.getGenerativeModel({ 
@@ -79,7 +79,7 @@ export class GoogleAdapter extends BaseAdapter {
           usage: this.extractGeminiUsage(response),
           finishReason: this.mapFinishReason(response.response.candidates?.[0]?.finishReason),
           metadata: {
-            thinking: options?.enableThinking ? response.response.candidates?.[0]?.content?.parts?.find(p => p.thought) : undefined
+            thinking: options?.enableThinking ? response.response.candidates?.[0]?.content?.parts?.find(p => (p as any).thought !== undefined) : undefined
           }
         };
       } catch (error) {
@@ -147,59 +147,12 @@ export class GoogleAdapter extends BaseAdapter {
 
   async listModels(): Promise<ModelInfo[]> {
     try {
-      // Gemini models available through the API
-      const models = [
-        {
-          id: 'gemini-2.5-pro-experimental',
-          name: 'Gemini 2.5 Pro (Experimental)',
-          contextWindow: 1000000, // 1M tokens
-          maxOutputTokens: 8192,
-          supportsThinking: true
-        },
-        {
-          id: 'gemini-2.5-flash',
-          name: 'Gemini 2.5 Flash',
-          contextWindow: 1000000, // 1M tokens
-          maxOutputTokens: 8192,
-          supportsThinking: true
-        },
-        {
-          id: 'gemini-2.0-flash-001',
-          name: 'Gemini 2.0 Flash',
-          contextWindow: 1000000,
-          maxOutputTokens: 8192,
-          supportsThinking: true
-        },
-        {
-          id: 'gemini-1.5-pro',
-          name: 'Gemini 1.5 Pro',
-          contextWindow: 2000000, // 2M tokens
-          maxOutputTokens: 8192,
-          supportsThinking: false
-        },
-        {
-          id: 'gemini-1.5-flash',
-          name: 'Gemini 1.5 Flash',
-          contextWindow: 1000000,
-          maxOutputTokens: 8192,
-          supportsThinking: false
-        }
-      ];
-
-      return models.map(model => ({
-        id: model.id,
-        name: model.name,
-        contextWindow: model.contextWindow,
-        maxOutputTokens: model.maxOutputTokens,
-        supportsJSON: true,
-        supportsImages: true,
-        supportsFunctions: true,
-        supportsStreaming: true,
-        supportsThinking: model.supportsThinking,
-        costPer1kTokens: this.getCostPer1kTokens(model.id)
-      }));
+      // Use centralized model registry
+      const googleModels = ModelRegistry.getProviderModels('google');
+      return googleModels.map(model => ModelRegistry.toModelInfo(model));
     } catch (error) {
       this.handleError(error, 'listing models');
+      return [];
     }
   }
 
@@ -226,7 +179,8 @@ export class GoogleAdapter extends BaseAdapter {
   // Private methods
   private supportsThinking(modelId: string): boolean {
     return [
-      'gemini-2.5-pro-experimental',
+      'gemini-2.5-pro-exp-03-25',
+      'gemini-2.5-pro',
       'gemini-2.5-flash',
       'gemini-2.0-flash-001'
     ].includes(modelId);
@@ -259,8 +213,8 @@ export class GoogleAdapter extends BaseAdapter {
     return undefined;
   }
 
-  private mapFinishReason(reason: any): string {
-    const reasonMap: Record<string, string> = {
+  private mapFinishReason(reason: any): 'stop' | 'length' | 'tool_calls' | 'content_filter' {
+    const reasonMap: Record<string, 'stop' | 'length' | 'tool_calls' | 'content_filter'> = {
       'FINISH_REASON_STOP': 'stop',
       'FINISH_REASON_MAX_TOKENS': 'length',
       'FINISH_REASON_SAFETY': 'content_filter',
@@ -269,14 +223,20 @@ export class GoogleAdapter extends BaseAdapter {
     return reasonMap[reason] || 'stop';
   }
 
-  private getCostPer1kTokens(modelId: string): { input: number; output: number } | undefined {
-    const costs: Record<string, { input: number; output: number }> = {
-      'gemini-2.5-pro-experimental': { input: 0.00125, output: 0.005 }, // Estimated
-      'gemini-2.5-flash': { input: 0.00025, output: 0.001 }, // Estimated
-      'gemini-2.0-flash-001': { input: 0.00025, output: 0.001 },
-      'gemini-1.5-pro': { input: 0.00125, output: 0.005 },
-      'gemini-1.5-flash': { input: 0.00025, output: 0.001 }
-    };
-    return costs[modelId];
+  async getModelPricing(modelId: string): Promise<CostDetails | null> {
+    // Use centralized model registry for pricing
+    const modelSpec = ModelRegistry.findModel('google', modelId);
+    if (modelSpec) {
+      return {
+        inputCost: 0,
+        outputCost: 0,
+        totalCost: 0,
+        currency: 'USD',
+        rateInputPerMillion: modelSpec.inputCostPerMillion,
+        rateOutputPerMillion: modelSpec.outputCostPerMillion
+      };
+    }
+
+    return null;
   }
 }

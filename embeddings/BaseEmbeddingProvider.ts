@@ -12,13 +12,17 @@ import {
   BatchEmbeddingResponse,
   EmbeddingProviderError,
   EmbeddingMetrics,
-  SimilarityResult
+  SimilarityResult,
+  EmbeddingCache
 } from './types';
+import { BaseCache, CacheManager } from '../utils/CacheManager';
+import { createHash } from 'crypto';
 
-export abstract class BaseEmbeddingProvider {
+export abstract class BaseEmbeddingProvider implements EmbeddingCache {
   protected apiKey: string;
   protected baseURL?: string;
   protected timeout: number = 30000;
+  protected cache: BaseCache<number[]>;
   protected metrics: EmbeddingMetrics = {
     requests: 0,
     tokens: 0,
@@ -29,16 +33,120 @@ export abstract class BaseEmbeddingProvider {
     lastRequest: new Date()
   };
 
-  constructor(apiKey: string, baseURL?: string, timeout?: number) {
+  constructor(apiKey: string, baseURL?: string, timeout?: number, cacheConfig?: any) {
     this.apiKey = apiKey;
-    this.baseURL = baseURL;
+    if (baseURL !== undefined) this.baseURL = baseURL;
     if (timeout) this.timeout = timeout;
+
+    // Initialize cache
+    const providerName = this.constructor.name.replace('EmbeddingProvider', '').toLowerCase();
+    const cacheName = `${providerName}-embeddings`;
+    this.cache = CacheManager.getCache<number[]>(cacheName) || 
+                 CacheManager.createLRUCache<number[]>(cacheName, {
+                   maxSize: cacheConfig?.maxSize || 10000,
+                   defaultTTL: cacheConfig?.defaultTTL || 7 * 24 * 60 * 60 * 1000, // 7 days
+                   ...cacheConfig
+                 });
   }
 
   /**
-   * Generate embeddings for input text(s)
+   * Generate embeddings for input text(s) - abstract method for providers to implement
    */
-  abstract embed(request: EmbeddingRequest): Promise<EmbeddingResponse>;
+  abstract embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse>;
+
+  /**
+   * Generate embeddings with caching
+   */
+  async embed(request: EmbeddingRequest): Promise<EmbeddingResponse> {
+    
+    // Handle single input
+    if (typeof request.input === 'string') {
+      const cacheKey = this.generateCacheKey(request.input, request.model);
+      
+      // Try cache first
+      const cached = await this.cache.get(cacheKey);
+      if (cached) {
+        this.metrics.cacheHits++;
+        return {
+          embeddings: [cached],
+          usage: { promptTokens: 0, totalTokens: 0 }, // Cached, no tokens used
+          model: request.model || 'unknown',
+          dimensions: cached.length
+        };
+      }
+
+      // Generate new embedding
+      const response = await this.embedUncached(request);
+      
+      // Cache the result if single embedding
+      if (response.embeddings.length === 1) {
+        await this.cache.set(cacheKey, response.embeddings[0]!);
+      }
+      
+      this.metrics.cacheMisses++;
+      return response;
+    }
+
+    // Handle array input - cache each individually
+    const inputs = Array.isArray(request.input) ? request.input : [request.input];
+    const cachedEmbeddings: (number[] | null)[] = [];
+    const uncachedInputs: string[] = [];
+    const uncachedIndices: number[] = [];
+
+    // Check cache for each input
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i]!;
+      const cacheKey = this.generateCacheKey(input, request.model);
+      const cached = await this.cache.get(cacheKey);
+      
+      if (cached) {
+        cachedEmbeddings[i] = cached;
+        this.metrics.cacheHits++;
+      } else {
+        cachedEmbeddings[i] = null;
+        uncachedInputs.push(input);
+        uncachedIndices.push(i);
+        this.metrics.cacheMisses++;
+      }
+    }
+
+    // Generate embeddings for uncached inputs
+    let uncachedResponse: EmbeddingResponse | null = null;
+    if (uncachedInputs.length > 0) {
+      uncachedResponse = await this.embedUncached({
+        ...request,
+        input: uncachedInputs
+      });
+
+      // Cache new embeddings
+      for (let i = 0; i < uncachedInputs.length; i++) {
+        const input = uncachedInputs[i]!;
+        const embedding = uncachedResponse.embeddings[i]!;
+        const cacheKey = this.generateCacheKey(input, request.model);
+        await this.cache.set(cacheKey, embedding);
+      }
+    }
+
+    // Combine cached and uncached results
+    const finalEmbeddings: number[][] = [];
+    let uncachedIndex = 0;
+
+    for (let i = 0; i < inputs.length; i++) {
+      if (cachedEmbeddings[i]) {
+        finalEmbeddings[i] = cachedEmbeddings[i]!;
+      } else {
+        finalEmbeddings[i] = uncachedResponse!.embeddings[uncachedIndex]!;
+        uncachedIndex++;
+      }
+    }
+
+    return {
+      embeddings: finalEmbeddings,
+      usage: uncachedResponse?.usage || { promptTokens: 0, totalTokens: 0 },
+      model: request.model || 'unknown',
+      dimensions: finalEmbeddings[0]?.length || 0
+    };
+  }
 
   /**
    * Get provider capabilities
@@ -78,11 +186,13 @@ export abstract class BaseEmbeddingProvider {
         const batch = request.inputs.slice(i, i + batchSize);
         
         try {
-          const response = await this.embed({
-            input: batch,
-            model: request.model,
-            dimensions: request.dimensions
-          });
+          const embeddingRequest: EmbeddingRequest = {
+            input: batch
+          };
+          if (request.model !== undefined) embeddingRequest.model = request.model;
+          if (request.dimensions !== undefined) embeddingRequest.dimensions = request.dimensions;
+          
+          const response = await this.embed(embeddingRequest);
 
           results.push(...response.embeddings);
           totalTokens += response.usage.totalTokens;
@@ -132,10 +242,9 @@ export abstract class BaseEmbeddingProvider {
       };
     } catch (error) {
       console.error(`Batch embedding failed for ${this.getProviderName()}:`, error);
-      throw new EmbeddingProviderError(
-        `Batch embedding failed: ${(error as Error).message}`,
-        this.getProviderName()
-      );
+      const embeddingError = new Error(`Batch embedding failed: ${(error as Error).message}`) as EmbeddingProviderError;
+      embeddingError.provider = this.getProviderName();
+      throw embeddingError;
     }
   }
 
@@ -152,9 +261,9 @@ export abstract class BaseEmbeddingProvider {
     let normB = 0;
 
     for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
+      dotProduct += a[i]! * b[i]!;
+      normA += a[i]! * a[i]!;
+      normB += b[i]! * b[i]!;
     }
 
     if (normA === 0 || normB === 0) {
@@ -237,7 +346,7 @@ export abstract class BaseEmbeddingProvider {
   async test(text: string = 'Hello, world!'): Promise<boolean> {
     try {
       const response = await this.embed({ input: text });
-      return response.embeddings.length > 0 && this.validateEmbedding(response.embeddings[0]);
+      return response.embeddings.length > 0 && this.validateEmbedding(response.embeddings[0]!);
     } catch (error) {
       console.warn(`${this.getProviderName()} test failed:`, error);
       return false;
@@ -264,8 +373,8 @@ export abstract class BaseEmbeddingProvider {
   protected createError(message: string, code?: string, statusCode?: number): EmbeddingProviderError {
     const error = new Error(message) as EmbeddingProviderError;
     error.provider = this.getProviderName();
-    error.code = code;
-    error.statusCode = statusCode;
+    if (code !== undefined) error.code = code;
+    if (statusCode !== undefined) error.statusCode = statusCode;
     return error;
   }
 
@@ -347,7 +456,7 @@ export abstract class BaseEmbeddingProvider {
       } else if (statusCode === 429) {
         code = 'RATE_LIMIT_EXCEEDED';
         message = 'Rate limit exceeded';
-      } else if (statusCode >= 500) {
+      } else if (statusCode !== undefined && statusCode >= 500) {
         code = 'SERVER_ERROR';
         message = 'Server error';
       }
@@ -359,5 +468,55 @@ export abstract class BaseEmbeddingProvider {
     }
     
     return this.createError(message, code, statusCode);
+  }
+
+  // Cache management methods (implementing EmbeddingCache interface)
+  
+  /**
+   * Generate cache key for embedding
+   */
+  protected generateCacheKey(input: string, model?: string): string {
+    const data = `${input}:${model || 'default'}`;
+    return createHash('sha256').update(data).digest('hex');
+  }
+
+  /**
+   * Get embedding from cache
+   */
+  async get(key: string): Promise<number[] | null> {
+    return this.cache.get(key);
+  }
+
+  /**
+   * Set embedding in cache
+   */
+  async set(key: string, embedding: number[], ttl?: number): Promise<void> {
+    return this.cache.set(key, embedding, ttl);
+  }
+
+  /**
+   * Clear all cached embeddings
+   */
+  async clear(): Promise<void> {
+    await this.cache.clear();
+    this.metrics.cacheHits = 0;
+    this.metrics.cacheMisses = 0;
+  }
+
+  /**
+   * Get cache size
+   */
+  size(): number {
+    return this.cache.size();
+  }
+
+  /**
+   * Get cache metrics combined with embedding metrics
+   */
+  getCacheMetrics() {
+    return {
+      ...this.cache.getMetrics(),
+      embeddings: this.getMetrics()
+    };
   }
 }

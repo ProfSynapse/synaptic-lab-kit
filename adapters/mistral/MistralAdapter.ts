@@ -1,20 +1,21 @@
 /**
  * Mistral AI Adapter with Agents API and latest models
  * Supports Mistral OCR 25.05, Agents API, and specialized models
+ * Updated June 17, 2025 with latest La Plateforme API features
  */
 
-import { BaseAdapter } from './BaseAdapter';
-import { GenerateOptions, StreamOptions, LLMResponse, ModelInfo, ProviderCapabilities } from './types';
+import { BaseAdapter } from '../BaseAdapter';
+import { GenerateOptions, StreamOptions, LLMResponse, ModelInfo, ProviderCapabilities, CostDetails } from '../types';
 
 export class MistralAdapter extends BaseAdapter {
   readonly name = 'mistral';
   readonly baseUrl = 'https://api.mistral.ai/v1';
 
-  constructor() {
-    super('MISTRAL_API_KEY', 'mistral-medium-3');
+  constructor(model?: string) {
+    super('MISTRAL_API_KEY', model || 'mistral-large-latest');
   }
 
-  async generate(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
+  async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {
     return this.withRetry(async () => {
       try {
         const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -38,16 +39,22 @@ export class MistralAdapter extends BaseAdapter {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         
-        return {
+        const usage = this.extractUsage(data);
+        const result: LLMResponse = {
           text: data.choices[0].message.content || '',
           model: data.model,
           provider: this.name,
-          usage: this.extractUsage(data),
           finishReason: data.choices[0].finish_reason,
           toolCalls: data.choices[0].message.tool_calls
         };
+        
+        if (usage) {
+          result.usage = usage;
+        }
+        
+        return result;
       } catch (error) {
         this.handleError(error, 'generation');
       }
@@ -127,10 +134,17 @@ export class MistralAdapter extends BaseAdapter {
   async listModels(): Promise<ModelInfo[]> {
     const models = [
       {
-        id: 'mistral-medium-3',
-        name: 'Mistral Medium 3',
+        id: 'mistral-large-latest',
+        name: 'Mistral Large Latest',
         contextWindow: 128000,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
+        features: ['chat', 'function_calling', 'json_mode', 'multimodal']
+      },
+      {
+        id: 'mistral-medium-latest',
+        name: 'Mistral Medium Latest', 
+        contextWindow: 128000,
+        maxOutputTokens: 8192,
         features: ['chat', 'function_calling', 'json_mode']
       },
       {
@@ -166,7 +180,18 @@ export class MistralAdapter extends BaseAdapter {
       supportsFunctions: model.features.includes('function_calling'),
       supportsStreaming: true,
       supportsThinking: false,
-      costPer1kTokens: this.getCostPer1kTokens(model.id)
+      costPer1kTokens: this.getCostPer1kTokens(model.id),
+      pricing: this.getCostPer1kTokens(model.id) ? {
+        inputPerMillion: this.getCostPer1kTokens(model.id)!.input * 1000,
+        outputPerMillion: this.getCostPer1kTokens(model.id)!.output * 1000,
+        currency: 'USD',
+        lastUpdated: new Date().toISOString()
+      } : {
+        inputPerMillion: 0,
+        outputPerMillion: 0,
+        currency: 'USD',
+        lastUpdated: new Date().toISOString()
+      }
     }));
   }
 
@@ -192,11 +217,27 @@ export class MistralAdapter extends BaseAdapter {
 
   private getCostPer1kTokens(modelId: string): { input: number; output: number } | undefined {
     const costs: Record<string, { input: number; output: number }> = {
-      'mistral-medium-3': { input: 0.0025, output: 0.0075 },
+      'mistral-large-latest': { input: 0.002, output: 0.006 },
+      'mistral-medium-latest': { input: 0.0025, output: 0.0075 },
       'mistral-small-3.1-25.03': { input: 0.001, output: 0.003 },
-      'mistral-ocr-25.05': { input: 0.15, output: 0.15 }, // Per 1M tokens
+      'mistral-ocr-25.05': { input: 0.00015, output: 0.00015 }, // Per 1K tokens
       'codestral-25.01': { input: 0.001, output: 0.003 }
     };
+    // Note: Free tier available on La Plateforme for experimentation
     return costs[modelId];
+  }
+
+  async getModelPricing(modelId: string): Promise<CostDetails | null> {
+    const costs = this.getCostPer1kTokens(modelId);
+    if (!costs) return null;
+
+    return {
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0,
+      currency: 'USD',
+      rateInputPerMillion: costs.input * 1000,
+      rateOutputPerMillion: costs.output * 1000
+    };
   }
 }

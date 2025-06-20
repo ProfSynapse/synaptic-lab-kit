@@ -9,11 +9,8 @@ import { ResponseGenerationRequest, ResponseGenerationResult } from './types';
 
 export class ResponseGenerator {
   private adapter?: BaseAdapter;
-  private embeddingProvider?: BaseEmbeddingProvider;
   private model?: string;
   private temperature?: number;
-  private maxRetries: number = 3;
-  private timeout: number = 30000;
 
   configure(config: {
     adapter: BaseAdapter;
@@ -24,11 +21,10 @@ export class ResponseGenerator {
     timeout?: number;
   }): void {
     this.adapter = config.adapter;
-    this.embeddingProvider = config.embeddingProvider;
-    this.model = config.model;
-    this.temperature = config.temperature;
-    this.maxRetries = config.maxRetries || 3;
-    this.timeout = config.timeout || 30000;
+    // embeddingProvider no longer stored as it's not used elsewhere
+    if (config.model !== undefined) this.model = config.model;
+    if (config.temperature !== undefined) this.temperature = config.temperature;
+    // maxRetries and timeout removed as unused
   }
 
   async generate(request: ResponseGenerationRequest): Promise<ResponseGenerationResult> {
@@ -43,27 +39,29 @@ export class ResponseGenerator {
       const prompt = await this.buildPrompt(request);
       
       // Generate response
-      const response = await this.adapter.generate(prompt, {
-        model: this.model,
-        temperature: request.options?.temperature || this.temperature,
-        maxTokens: request.options?.maxTokens,
-        stopSequences: request.options?.stopSequences,
-        jsonMode: request.options?.jsonMode
-      });
+      const generateOptions: any = {};
+      if (this.model !== undefined) generateOptions.model = this.model;
+      if (request.options?.temperature !== undefined) generateOptions.temperature = request.options.temperature;
+      else if (this.temperature !== undefined) generateOptions.temperature = this.temperature;
+      if (request.options?.maxTokens !== undefined) generateOptions.maxTokens = request.options.maxTokens;
+      if (request.options?.stopSequences !== undefined) generateOptions.stopSequences = request.options.stopSequences;
+      if (request.options?.jsonMode !== undefined) generateOptions.jsonMode = request.options.jsonMode;
+      
+      const response = await this.adapter.generate(prompt, generateOptions);
       
       const latency = Date.now() - startTime;
       
       return {
-        content: response.content,
+        content: response.text || (response as any).content || '',
         metadata: {
           model: response.model,
-          tokens: response.usage.totalTokens,
+          tokens: response.usage?.totalTokens || 0,
           latency,
-          cost: this.calculateCost(response.usage.totalTokens, response.model),
-          finishReason: response.finishReason
+          cost: this.calculateCost(response.usage?.totalTokens || 0, response.model),
+          finishReason: response.finishReason || 'completed'
         },
-        reasoning: response.reasoning,
-        confidence: response.confidence
+        reasoning: (response as any).reasoning,
+        confidence: (response as any).confidence
       };
     } catch (error) {
       throw new Error(`Response generation failed: ${(error as Error).message}`);
@@ -106,7 +104,7 @@ export class ResponseGenerator {
     return prompt;
   }
 
-  private calculateCost(tokens: number, model: string): number {
+  private calculateCost(tokens: number, _model: string): number {
     // Simple cost calculation - would be provider-specific in reality
     const costPer1kTokens = 0.002; // Default rate
     return (tokens / 1000) * costPer1kTokens;
