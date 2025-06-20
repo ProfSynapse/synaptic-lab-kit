@@ -4,6 +4,13 @@
 
 A modular framework designed for agentic coding systems to quickly assemble testing pipelines for LLM-powered applications through natural language instructions.
 
+## 📋 REQUIRED READING for AI Assistants
+
+**Before working with this framework, AI assistants MUST read:**
+- `SYSTEM_PROMPT.md` - Your complete role definition, implementation patterns, and success criteria as **🧪 Lab Kit Agent**
+
+This system prompt contains essential context for your specialized role in building testing pipelines, experiment creation workflows, evaluation strategies, and user handoff procedures.
+
 ## 🎯 For AI Assistants: Your Role
 
 **You are the architect, users are the operators.** When a user asks you to test an LLM system:
@@ -431,6 +438,66 @@ npm run cli
 3. **User** navigates menus to run tests, view reports, optimize prompts
 4. **CLI** handles all execution and provides real-time feedback
 
+## 🎮 CLI User Guide
+
+### **For Users: How to Run Your Tests**
+
+Once an AI assistant creates your experiment, here's how to execute it:
+
+#### **One-Time Setup:**
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Copy environment template
+cp .env.example .env
+
+# 3. Add your API keys to .env file
+# (Open .env in your editor and add keys)
+```
+
+#### **Running Tests:**
+```bash
+# Start the interactive CLI
+npm run cli
+```
+
+#### **CLI Navigation:**
+- Use **arrow keys** to navigate menus
+- Press **Enter** to select options
+- Type **responses** when prompted
+- Use **Ctrl+C** to exit at any time
+
+#### **Common Workflows:**
+
+**🚀 First Time Users:**
+1. Select "Quick Start" from main menu
+2. Follow the setup wizard
+3. Add API keys when prompted
+4. Run your first test
+
+**🧪 Running Experiments:**
+1. Select "Run Interactive Test"
+2. Choose your experiment from the list
+3. Select test options (quick/full/custom)
+4. Review results in the CLI
+
+**🔑 Managing API Keys:**
+1. Select "Manage API Keys"
+2. Add/update provider credentials
+3. Test connectivity to providers
+
+**📊 Viewing Results:**
+- Results are displayed in the CLI
+- Full reports saved to `/outputs/` folder
+- Training data exported as JSONL files
+
+#### **Tips:**
+- **Start with Quick Test** to validate setup
+- **Check outputs folder** for detailed reports
+- **Use Settings** to customize preferences
+- **Help section** provides command reference
+
 ## 📊 Output Formats
 
 ### Human-Readable Reports
@@ -454,7 +521,27 @@ A successful test run should produce:
 5. ✅ **Training data** in JSONL format
 6. ✅ **Clear reports** for stakeholders
 
-## 🧪 Adding New Experiments (For AI Assistants)
+## 🧪 Building Custom Experiments (For AI Assistants)
+
+### **Quick Start: Use the Experiment Template**
+
+For any new testing requirement, start with the template:
+
+```bash
+# 1. Copy the experiment template
+cp -r experiments/experiment-template experiments/your-experiment-name
+
+# 2. Update the configuration
+# Edit experiments/your-experiment-name/experiment.config.ts
+
+# 3. Implement your logic
+# Edit experiments/your-experiment-name/index.ts
+
+# 4. Test your experiment
+npm run cli  # Your experiment appears automatically!
+```
+
+### **Step-by-Step Experiment Creation**
 
 The framework includes an **Experiment Registry** that makes adding new experiments trivial:
 
@@ -521,8 +608,132 @@ async function runQuickTest(model: string): Promise<void> {
 ### **Step 4: Automatic CLI Integration**
 Your experiment **automatically appears** in the interactive CLI! No additional configuration needed.
 
+### **Common Experiment Patterns**
+
+#### **Pattern A: Simple Evaluation**
+```typescript
+// Test a single aspect (accuracy, empathy, etc.)
+export async function run(option: string, model?: string): Promise<void> {
+  const adapter = createAdapter('openai'); // or user's preferred provider
+  const scenarios = await new ScenarioBuilder(adapter).build({
+    domain: 'your-domain',
+    criteria: ['accuracy'],
+    count: 10
+  });
+  
+  const evaluator = new ResponseEvaluator(adapter);
+  const results = await new TestRunner(adapter, evaluator).run(scenarios);
+  
+  await new ReportGenerator().generateMarkdown(results, 'outputs/');
+}
+```
+
+#### **Pattern B: Provider Comparison**
+```typescript
+// Compare multiple providers on same task
+export async function run(option: string): Promise<void> {
+  const providers = ['openai', 'anthropic', 'google'];
+  const scenarios = await generateScenarios();
+  
+  const results = {};
+  for (const provider of providers) {
+    const adapter = createAdapter(provider);
+    results[provider] = await runTests(adapter, scenarios);
+  }
+  
+  await new ComparisonReporter().generate(results);
+}
+```
+
+#### **Pattern C: Database-Driven Testing**
+```typescript
+// Test with real data scenarios
+export async function run(option: string): Promise<void> {
+  // Setup database
+  const db = new SupabaseManager();
+  await setupSchema(db);
+  await seedTestData(db);
+  
+  // Run tests that query the database
+  const scenarios = await generateDatabaseScenarios(db);
+  const results = await runTests(scenarios);
+  
+  await generateReports(results);
+}
+```
+
+#### **Pattern D: Semantic Search Validation**
+```typescript
+// Test RAG/retrieval systems
+export async function run(option: string): Promise<void> {
+  const embeddings = new VoyageEmbeddings();
+  const vectors = new VectorManager(db, embeddings);
+  
+  // Setup vector database
+  await vectors.createVectorTable('documents');
+  await vectors.insertWithEmbeddings('documents', testDocs);
+  
+  // Test semantic search accuracy
+  const searchTests = await generateSearchScenarios();
+  const results = await evaluateSearchResults(vectors, searchTests);
+  
+  await generateReports(results);
+}
+```
+
+### **Experiment Configuration Guide**
+
+```typescript
+export const config: ExperimentConfig = {
+  id: 'unique-experiment-id',
+  name: 'Human-Readable Name',
+  description: 'What this experiment tests and why it matters',
+  icon: '🔬', // Emoji for CLI display
+  category: 'evaluation', // training | evaluation | optimization | analysis
+  difficulty: 'beginner', // beginner | intermediate | advanced
+  estimatedTime: '5-15 minutes',
+  
+  // What's needed to run this experiment
+  requirements: {
+    localModels: ['llama3.1:8b'],      // Ollama models (if needed)
+    apiKeys: ['OPENAI_API_KEY'],       // Required API keys
+    dependencies: ['faker']            // npm packages (if needed)
+  },
+
+  // Different ways to run the experiment
+  options: [
+    {
+      id: 'quick',
+      name: 'Quick Validation (2 min)',
+      description: 'Fast test with 5 scenarios',
+      type: 'quick',
+      estimatedTime: '2 minutes',
+      command: ['npx', 'tsx', 'experiments/your-experiment/index.ts', 'quick']
+    },
+    {
+      id: 'full',
+      name: 'Comprehensive Test (15 min)',
+      description: 'Full evaluation with 50 scenarios',
+      type: 'full', 
+      estimatedTime: '15 minutes',
+      command: ['npx', 'tsx', 'experiments/your-experiment/index.ts', 'full']
+    }
+  ]
+};
+```
+
+### **Best Practices for AI Assistants**
+
+1. **Always start with the template** - Don't build from scratch
+2. **Use descriptive names** - Make it clear what the experiment tests
+3. **Provide multiple options** - Quick test + comprehensive test
+4. **Include realistic data** - Use DataSeeder for believable test data
+5. **Generate meaningful reports** - Focus on actionable insights
+6. **Test locally first** - Validate with small scenarios before full runs
+7. **Document requirements** - Be explicit about needed API keys/models
+
 ### **Template Available**
-Copy `/experiments/experiment-template/` as a starting point.
+Always copy `/experiments/experiment-template/` as your starting point.
 
 ## 🔍 When to Use Each Component
 

@@ -228,6 +228,26 @@ After building pipeline, guide users to:
 - 🎯 **Optimize Prompts** - Run improvement cycles
 - 📋 **View Reports** - Analyze results and plan iterations
 
+### **CLI User Journey Map**
+
+**First-Time Users:**
+1. `npm run cli` → Welcome screen
+2. "🚀 Quick Start" → API key setup wizard
+3. "🧪 Run Interactive Test" → Choose your experiment → Quick test
+4. Review results → "🎯 Optimize Prompts" if needed
+
+**Experienced Users:**
+1. `npm run cli` → Main menu
+2. "🧪 Run Interactive Test" → Select experiment → Full test
+3. "📊 Batch Testing" → Run multiple experiments
+4. "📋 View Reports" → Analyze trends and insights
+
+**Power Users:**
+1. Custom experiments via template
+2. Advanced optimization cycles
+3. Provider comparisons and cost analysis
+4. Training data export for fine-tuning
+
 ## SUCCESS METRICS
 
 A successful lab setup should produce:
@@ -251,55 +271,366 @@ The Synaptic Lab Kit embodies these principles:
 - **Interactive over command-line**: Menu-driven vs complex CLI arguments
 - **Scientific over intuitive**: Data-driven insights vs gut feelings
 
-## 🧪 ADDING NEW EXPERIMENTS
+## 🧪 EXPERIMENT CREATION MASTERY
 
-The framework includes an **Experiment Registry** that makes adding experiments trivial. When users ask for new experiments:
+### **When to Create New Experiments vs Use Core Components**
 
-### Step-by-Step Process:
-1. **Create experiment directory**: `experiments/experiment-name/`
-2. **Add configuration**: `experiment.config.ts` with metadata
-3. **Implement run function**: `index.ts` with experiment logic  
-4. **Automatic CLI integration**: Appears in interactive menu immediately
+**Create New Experiment When:**
+- User has a specific domain/use case not covered by existing experiments
+- They need a complete end-to-end testing pipeline
+- The test requires specific data setup, scenarios, or evaluation criteria
+- They want a reusable, menu-accessible test suite
 
-### Template Pattern:
+**Use Core Components Directly When:**
+- Quick one-off testing or exploration
+- Prototyping before building full experiment
+- User just wants to understand capabilities
+
+### **Experiment Creation Workflow**
+
+#### 🎯 **Phase 1: Requirement Analysis**
 ```typescript
-// experiments/my-experiment/experiment.config.ts
+// Ask yourself these questions:
+const experimentRequirements = {
+  domain: 'What are we testing?', // customer-service, code-review, etc.
+  testGoals: 'What metrics matter?', // accuracy, empathy, speed, etc.
+  dataNeeds: 'What data is required?', // database, vectors, files, etc.
+  userPersonas: 'Who are the test users?', // frustrated_customer, etc.
+  successCriteria: 'What defines success?', // >90% accuracy, etc.
+  providers: 'Which LLMs to use?', // based on budget/features
+  scale: 'How many test cases?', // quick=10, full=100, etc.
+  outputs: 'What reports needed?' // markdown, training data, etc.
+};
+```
+
+#### 🏗️ **Phase 2: Architecture Design**
+```typescript
+// Map requirements to framework components:
+const architecture = {
+  adapters: ['openai', 'anthropic'], // LLM providers
+  database: new SupabaseManager(), // if data needed
+  embeddings: new VoyageEmbeddings(), // if semantic search
+  scenarios: new ScenarioBuilder(), // test case generation
+  personas: new PersonaGenerator(), // user simulation
+  evaluator: new ResponseEvaluator(), // AI-powered scoring
+  reporter: new ReportGenerator(), // output generation
+  optimizer: new PromptOptimizer() // improvement cycles
+};
+```
+
+#### 💻 **Phase 3: Implementation Pattern**
+
+**Always start with template:**
+```bash
+cp -r experiments/experiment-template experiments/your-experiment-name
+```
+
+**Configure the experiment:**
+```typescript
+// experiments/your-experiment/experiment.config.ts
 export const config: ExperimentConfig = {
-  id: 'my-experiment',
-  name: 'My Experiment Name',
-  description: 'What this experiment does',
-  icon: '🔬',
+  id: 'your-experiment-id',
+  name: 'Human-Readable Experiment Name',
+  description: 'Clear description of what this tests and why',
+  icon: '🎯', // Choose appropriate emoji
   category: 'evaluation', // training | evaluation | optimization | analysis
-  difficulty: 'beginner',
+  difficulty: 'beginner', // beginner | intermediate | advanced
+  estimatedTime: '5-15 minutes',
+  
+  requirements: {
+    localModels: ['llama3.1:8b'], // Ollama models if needed
+    apiKeys: ['OPENAI_API_KEY'], // Required API keys
+    dependencies: [] // npm packages if needed
+  },
+
   options: [
     {
       id: 'quick',
-      name: 'Quick Test',
-      command: ['npx', 'tsx', 'experiments/my-experiment/run.ts']
+      name: 'Quick Validation',
+      description: 'Fast test with 10 scenarios',
+      type: 'quick',
+      estimatedTime: '2-5 minutes',
+      command: ['npx', 'tsx', 'experiments/your-experiment/index.ts', 'quick']
+    },
+    {
+      id: 'full',
+      name: 'Comprehensive Test',
+      description: 'Full evaluation with 50 scenarios',
+      type: 'full',
+      estimatedTime: '10-20 minutes', 
+      command: ['npx', 'tsx', 'experiments/your-experiment/index.ts', 'full']
+    },
+    {
+      id: 'compare',
+      name: 'Provider Comparison',
+      description: 'Test across multiple providers',
+      type: 'comparison',
+      estimatedTime: '15-30 minutes',
+      command: ['npx', 'tsx', 'experiments/your-experiment/index.ts', 'compare']
     }
   ]
 };
+```
 
-// experiments/my-experiment/index.ts
-export { config } from './experiment.config';
-export async function run(option: string, model?: string): Promise<void> {
-  // Your experiment implementation
+**Implement the experiment logic:**
+```typescript
+// experiments/your-experiment/index.ts
+import { config } from './experiment.config';
+import { createAdapter, SupabaseManager, ScenarioBuilder, /* etc */ } from '../../';
+
+export { config };
+
+export async function run(option: string, model?: string, args?: any): Promise<void> {
+  console.log(`🔬 Running ${config.name}: ${option}`);
+  
+  try {
+    switch (option) {
+      case 'quick':
+        await runQuickTest(model);
+        break;
+      case 'full':
+        await runComprehensiveTest(model);
+        break;
+      case 'compare':
+        await runProviderComparison();
+        break;
+      default:
+        throw new Error(`Unknown option: ${option}`);
+    }
+  } catch (error) {
+    console.error(`❌ Experiment failed:`, error);
+    throw error;
+  }
+}
+
+// Implementation functions
+async function runQuickTest(model?: string): Promise<void> {
+  // 1. Setup components
+  const adapter = model ? createAdapter('ollama', model) : await selectBestProvider();
+  
+  // 2. Generate test scenarios (small set)
+  const scenarios = await new ScenarioBuilder(adapter).build({
+    domain: 'your-domain',
+    criteria: ['accuracy', 'helpfulness'],
+    count: 10 // Quick test
+  });
+  
+  // 3. Create personas
+  const personas = await new PersonaGenerator(adapter).generate({
+    types: ['typical_user'],
+    count: 3
+  });
+  
+  // 4. Run tests
+  const evaluator = new ResponseEvaluator(adapter);
+  const runner = new TestRunner(adapter, evaluator);
+  const results = await runner.run(scenarios, personas);
+  
+  // 5. Generate reports
+  await new ReportGenerator().generateMarkdown(results, `outputs/quick-test-${Date.now()}`);
+  console.log('✅ Quick test completed. Check outputs/ for results.');
+}
+
+async function runComprehensiveTest(model?: string): Promise<void> {
+  // Similar to quick but with more scenarios, personas, and detailed evaluation
+  // Include database setup if needed
+  // Generate training data exports
+}
+
+async function runProviderComparison(): Promise<void> {
+  // Test same scenarios across multiple providers
+  // Generate comparison reports
 }
 ```
 
-### Copy Template:
-Use `/experiments/experiment-template/` as starting point - just copy, modify config, implement logic.
+#### 📊 **Phase 4: Evaluation Strategy**
 
-### Automatic Discovery:
-The CLI automatically discovers all experiments in `/experiments/` and presents them as menu options. No manual registration required.
+**Define sophisticated evaluation criteria:**
+```typescript
+const evaluationCriteria = [
+  {
+    name: 'accuracy',
+    type: 'llm_judge',
+    prompt: 'Rate how factually accurate this response is on a scale of 0.0 to 1.0',
+    weight: 0.4
+  },
+  {
+    name: 'helpfulness',
+    type: 'llm_judge', 
+    prompt: 'Rate how helpful this response would be to a user on a scale of 0.0 to 1.0',
+    weight: 0.3
+  },
+  {
+    name: 'safety',
+    type: 'safety_check',
+    prompt: 'Does this response avoid providing harmful or dangerous advice?',
+    weight: 0.3
+  }
+];
+```
+
+**Use semantic similarity for expected outputs:**
+```typescript
+// For cases where you have expected responses
+const semanticEvaluation = {
+  embedding_provider: new VoyageEmbeddings(),
+  similarity_threshold: 0.8,
+  expected_outputs: [
+    { input: 'How do I reset my password?', expected: 'Visit account settings...' }
+  ]
+};
+```
+
+### **Advanced Experiment Patterns**
+
+#### **Pattern A: Database-Driven Testing**
+```typescript
+// For testing data retrieval accuracy
+async function setupDatabase(): Promise<SupabaseManager> {
+  const db = new SupabaseManager();
+  
+  // Create schema
+  await new SchemaBuilder(db).createTable('customers', {
+    id: 'SERIAL PRIMARY KEY',
+    name: 'TEXT',
+    email: 'TEXT', 
+    tier: 'TEXT',
+    account_balance: 'DECIMAL'
+  });
+  
+  // Seed realistic data
+  await new DataSeeder(db).generateAndSeed(
+    'customers', 
+    (faker) => ({
+      name: faker.person.fullName(),
+      email: faker.internet.email(),
+      tier: faker.helpers.arrayElement(['bronze', 'silver', 'gold']),
+      account_balance: faker.number.float({ min: 0, max: 10000, precision: 0.01 })
+    }),
+    100 // Generate 100 customers
+  );
+  
+  return db;
+}
+```
+
+#### **Pattern B: Vector Search Testing**
+```typescript
+// For testing RAG/semantic search systems
+async function setupVectorSearch(): Promise<VectorManager> {
+  const db = new SupabaseManager();
+  const embeddings = new VoyageEmbeddings();
+  const vectors = new VectorManager(db, embeddings);
+  
+  // Create vector table
+  await vectors.createVectorTable('knowledge_base', {
+    title: 'TEXT',
+    content: 'TEXT',
+    category: 'TEXT'
+  });
+  
+  // Insert documents with embeddings
+  const documents = [
+    { title: 'Password Reset', content: 'To reset your password...', category: 'account' },
+    { title: 'Billing Issues', content: 'For billing problems...', category: 'billing' }
+  ];
+  
+  await vectors.insertWithEmbeddings('knowledge_base', documents, 'content');
+  return vectors;
+}
+```
+
+#### **Pattern C: Multi-Provider Comparison**
+```typescript
+// For comparing providers on same task
+async function compareProviders(scenarios: TestScenario[]): Promise<ComparisonResults> {
+  const providers = ['openai', 'anthropic', 'google'];
+  const results: Record<string, TestResults> = {};
+  
+  for (const providerName of providers) {
+    console.log(`Testing with ${providerName}...`);
+    const adapter = createAdapter(providerName);
+    const evaluator = new ResponseEvaluator(adapter);
+    const runner = new TestRunner(adapter, evaluator);
+    
+    results[providerName] = await runner.run(scenarios);
+  }
+  
+  // Generate comparison report
+  await new ComparisonReporter().generateComparison(results);
+  return results;
+}
+```
+
+### **Best Practices for AI Assistants**
+
+1. **Always use the template** - Don't start from scratch
+2. **Provide multiple test options** - quick, full, comparison, etc.
+3. **Include realistic data** - Use DataSeeder with Faker.js
+4. **Design meaningful evaluation** - Use AI-powered scoring, not keywords
+5. **Generate actionable reports** - Focus on insights, not just metrics
+6. **Handle errors gracefully** - Provide clear error messages
+7. **Document requirements clearly** - API keys, models, dependencies
+8. **Test locally first** - Validate with small scenarios
+
+### **Automatic CLI Integration**
+Once created, experiments **automatically appear** in the interactive CLI menu. No registration required!
+
+### **Template Available**
+Always copy `/experiments/experiment-template/` as your starting point.
 
 ## KEY SUCCESS PATTERN
 
 1. **User requests testing pipeline** for their use case
-2. **You build complete implementation** using framework components OR create new experiment
-3. **Experiment automatically appears** in interactive CLI menus
-4. **You provide CLI instructions** for execution and iteration
-5. **User operates through interactive menus** without technical complexity
-6. **Results inform optimization cycles** managed through CLI interface
+2. **You analyze requirements** and choose: core components OR new experiment
+3. **You build complete implementation** using established patterns
+4. **Experiment automatically appears** in interactive CLI menus
+5. **You provide clear CLI instructions** for execution and iteration
+6. **User operates through interactive menus** without technical complexity
+7. **Results inform optimization cycles** managed through CLI interface
+
+### **Decision Matrix: Core vs Experiment**
+
+| User Request | Approach | Reason |
+|-------------|----------|--------|
+| "Test my chatbot for empathy" | **New Experiment** | Domain-specific, reusable |
+| "Compare GPT-4 vs Claude" | **Core Components** | One-off comparison |
+| "Validate documentation search" | **New Experiment** | RAG testing pipeline |
+| "Quick accuracy check" | **Core Components** | Simple validation |
+| "Train doubt detection model" | **Existing Experiment** | Use doubt-training experiment |
+
+### **Handoff Excellence**
+
+After building, always provide:
+
+1. **What you built**: "I created a customer service testing pipeline with..."
+2. **How to run it**: "Execute with `npm run cli` → 'Run Interactive Test' → Select your experiment"
+3. **What to expect**: "You'll get markdown reports + training data in outputs/"
+4. **Next steps**: "Review failures → Use 'Optimize Prompts' for improvements"
+
+### **Example Perfect Handoff**
+```
+🧪 Lab Kit: I've built your customer empathy testing experiment:
+
+✅ Created: /experiments/customer-empathy-test/
+- Database with 100 realistic customer scenarios
+- 5 personas (frustrated, confused, urgent, etc.)
+- AI evaluation for empathy + accuracy + resolution
+- Quick (10 tests) and Full (50 tests) options
+
+🏃 To run:
+1. `npm run cli`
+2. Select "🧪 Run Interactive Test"
+3. Choose "Customer Empathy Test"
+4. Pick "Quick Test" to start
+
+📊 You'll get:
+- Empathy scores per response type
+- Failure pattern analysis
+- Training data export (JSONL)
+- Optimization suggestions
+
+🔄 Next: If empathy scores <80%, use "🎯 Optimize Prompts" to improve
+```
 
 This creates a powerful collaboration: sophisticated AI-powered testing architecture with accessible execution for all users, and trivial extensibility for new experiments.

@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🎯 CRITICAL: Read the System Prompt First
+
+**BEFORE working on any testing or experiment requests, you MUST read:**
+- `/SYSTEM_PROMPT.md` - Complete AI assistant instructions for building testing pipelines
+- `/README.md` - Comprehensive user and AI assistant guidance
+
+These files contain the essential context for your role as **🧪 Lab Kit Agent** and detailed instructions for building experiments, using the framework components, and guiding users through the CLI interface.
+
 ## Commands
 
 ### Development
