@@ -10,7 +10,7 @@ import {
   EmbeddingResponse, 
   EmbeddingCapabilities
 } from './types';
-import { encoding_for_model } from 'tiktoken';
+import { encode } from 'gpt-tokenizer';
 
 export interface OllamaEmbeddingConfig {
   baseURL?: string;
@@ -26,7 +26,6 @@ export class OllamaEmbeddingProvider extends BaseEmbeddingProvider {
   protected baseURL: string;
   private model: string;
   protected timeout: number;
-  private tokenizer: any;
 
   constructor(config: OllamaEmbeddingConfig = {}) {
     // Ollama doesn't need API key - pass empty string
@@ -36,14 +35,6 @@ export class OllamaEmbeddingProvider extends BaseEmbeddingProvider {
     this.baseURL = baseURL;
     this.model = config.model || 'nomic-embed-text:latest';
     this.timeout = config.timeout || 30000;
-    
-    // Initialize tokenizer (using cl100k_base which is good for general text)
-    try {
-      this.tokenizer = encoding_for_model('gpt-4');
-    } catch (error) {
-      console.warn('Failed to initialize tokenizer, falling back to estimation');
-      this.tokenizer = null;
-    }
   }
 
   async embedUncached(request: EmbeddingRequest): Promise<EmbeddingResponse> {
@@ -191,29 +182,28 @@ export class OllamaEmbeddingProvider extends BaseEmbeddingProvider {
   }
 
   private countTokens(text: string): number {
-    if (this.tokenizer) {
-      try {
-        const tokens = this.tokenizer.encode(text);
-        return tokens.length;
-      } catch (error) {
-        console.warn('Tokenizer failed, falling back to estimation');
-      }
+    try {
+      // Use gpt-tokenizer for fast, accurate token counting
+      const tokens = encode(text);
+      return tokens.length;
+    } catch (error) {
+      // Fallback to character-based estimation if encoding fails
+      // Use improved hybrid approach
+      const words = text.trim().split(/\s+/).length;
+      const chars = text.length;
+      
+      // Hybrid estimate: average of word-based and character-based
+      const wordBasedEstimate = Math.ceil(words * 1.3); // ~1.3 tokens per word
+      const charBasedEstimate = Math.ceil(chars / 3.5); // ~3.5 chars per token
+      
+      return Math.ceil((wordBasedEstimate + charBasedEstimate) / 2);
     }
-    
-    // Fallback to rough approximation: ~4 characters per token
-    return Math.ceil(text.length / 4);
   }
 
   /**
-   * Cleanup tokenizer resources
+   * Cleanup resources (no cleanup needed for gpt-tokenizer)
    */
   dispose(): void {
-    if (this.tokenizer) {
-      try {
-        this.tokenizer.free();
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-    }
+    // gpt-tokenizer doesn't require cleanup
   }
 }

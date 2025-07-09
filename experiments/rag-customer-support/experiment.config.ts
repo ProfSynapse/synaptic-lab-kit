@@ -17,7 +17,7 @@ export const config: ExperimentConfig = {
   requirements: {
     localModels: ['nomic-embed-text:latest', 'mistral-small:22b-instruct-2409-q6_K'],
     apiKeys: [],
-    dependencies: ['tiktoken']
+    dependencies: ['gpt-tokenizer']
   },
 
   options: [
