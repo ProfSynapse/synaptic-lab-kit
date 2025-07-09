@@ -8,6 +8,15 @@
         "--access-token",
         "${SUPABASE_ACCESS_TOKEN}"
       ]
+    },
+    "hf-mcp-server": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://huggingface.co/mcp",
+        "--header",
+        "Authorization: Bearer <YOUR_HF_TOKEN>"
+      ]
     }
   }
 }
