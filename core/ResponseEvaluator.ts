@@ -1,23 +1,59 @@
 /**
  * Response Evaluator
- * Evaluates LLM responses against defined criteria
+ * Evaluates LLM responses against defined criteria using AI-powered evaluation
  */
 
 import { EvaluationResult, EvaluationCriterion, CustomEvaluator } from './types';
+import { BaseAdapter } from '../adapters/BaseAdapter';
+import { EvaluationPrompts, EvaluationPromptTemplate } from './EvaluationPrompts';
+
+export interface LLMJudgeConfig {
+  enabled: boolean;
+  model?: string;
+  temperature?: number;
+  maxRetries?: number;
+  fallbackToHeuristic?: boolean;
+}
 
 export class ResponseEvaluator {
   private criteria: EvaluationCriterion[] = [];
   private thresholds: Record<string, number> = {};
   private customEvaluators: CustomEvaluator[] = [];
+  private llmAdapter?: BaseAdapter;
+  private llmJudgeConfig: LLMJudgeConfig = {
+    enabled: false,
+    temperature: 0.1, // Low temperature for consistent evaluation
+    maxRetries: 2,
+    fallbackToHeuristic: true
+  };
+
+  constructor(llmAdapter?: BaseAdapter, llmJudgeConfig?: Partial<LLMJudgeConfig>) {
+    if (llmAdapter) {
+      this.llmAdapter = llmAdapter;
+      this.llmJudgeConfig = {
+        ...this.llmJudgeConfig,
+        ...llmJudgeConfig,
+        enabled: true
+      };
+    }
+  }
 
   configure(config: {
     criteria: EvaluationCriterion[];
     thresholds?: Record<string, number>;
     customEvaluators?: CustomEvaluator[];
+    llmJudge?: Partial<LLMJudgeConfig>;
   }): void {
     this.criteria = config.criteria;
     this.thresholds = config.thresholds || {};
     this.customEvaluators = config.customEvaluators || [];
+    
+    if (config.llmJudge) {
+      this.llmJudgeConfig = {
+        ...this.llmJudgeConfig,
+        ...config.llmJudge
+      };
+    }
   }
 
   async evaluate(
@@ -91,6 +127,27 @@ export class ResponseEvaluator {
     scenario?: any,
     persona?: any
   ): Promise<number> {
+    // Try LLM-as-Judge evaluation first if enabled
+    if (this.llmJudgeConfig.enabled && this.llmAdapter) {
+      try {
+        const llmScore = await this.evaluateWithLLMJudge(
+          criterion, prompt, response, scenario, persona
+        );
+        if (llmScore !== null) {
+          return llmScore;
+        }
+      } catch (error) {
+        console.warn(`LLM-as-Judge evaluation failed for ${criterion.name}:`, error);
+        
+        if (!this.llmJudgeConfig.fallbackToHeuristic) {
+          throw error;
+        }
+        
+        console.log(`Falling back to heuristic evaluation for ${criterion.name}`);
+      }
+    }
+
+    // Fallback to heuristic evaluation
     switch (criterion.type) {
       case 'accuracy':
         return this.evaluateAccuracy(prompt, response, scenario);
@@ -262,7 +319,7 @@ export class ResponseEvaluator {
     
     switch (evaluator.implementation) {
       case 'regex':
-        const pattern = new RegExp(evaluator.config.pattern, evaluator.config.flags || 'i');
+        const pattern = new RegExp(evaluator.config.pattern || '.*', evaluator.config.flags || 'i');
         return pattern.test(response) ? 1.0 : 0.0;
         
       case 'function':
@@ -270,8 +327,7 @@ export class ResponseEvaluator {
         return 0.5;
         
       case 'llm':
-        // Would implement LLM-based evaluation
-        return 0.5;
+        return this.evaluateWithCustomLLMJudge(criterion, _prompt, response, _scenario, _persona);
         
       case 'api':
         // Would implement external API evaluation
@@ -279,6 +335,254 @@ export class ResponseEvaluator {
         
       default:
         return 0.5;
+    }
+  }
+
+  /**
+   * Evaluate using LLM-as-Judge for a specific criterion
+   */
+  private async evaluateWithLLMJudge(
+    criterion: EvaluationCriterion,
+    prompt: string,
+    response: string,
+    scenario?: any,
+    persona?: any
+  ): Promise<number | null> {
+    if (!this.llmAdapter) {
+      return null;
+    }
+
+    // Get appropriate evaluation prompt template
+    let template = EvaluationPrompts.getPrompt(criterion.name);
+    
+    // Fallback to generic evaluation if specific template not found
+    if (!template) {
+      template = this.createGenericEvaluationPrompt(criterion);
+    }
+
+    // Format the prompt with variables
+    const formattedPrompts = EvaluationPrompts.formatPrompt(template, {
+      prompt,
+      response,
+      context: this.buildContextString(scenario, persona),
+      persona: persona?.name || '',
+      scenario: scenario?.description || ''
+    });
+
+    try {
+      // Call LLM for evaluation
+      const generateOptions: any = {
+        systemPrompt: formattedPrompts.systemPrompt,
+        temperature: this.llmJudgeConfig.temperature,
+        maxTokens: template.outputFormat === 'json' ? 1000 : 100
+      };
+      
+      if (this.llmJudgeConfig.model) {
+        generateOptions.model = this.llmJudgeConfig.model;
+      }
+      
+      const evaluationResponse = await this.llmAdapter.generate(
+        formattedPrompts.evaluationPrompt,
+        generateOptions
+      );
+
+      // Parse the response based on output format
+      return this.parseEvaluationResponse(evaluationResponse.text, template.outputFormat || 'score');
+      
+    } catch (error) {
+      console.error(`LLM evaluation failed for ${criterion.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Evaluate using custom LLM judge configuration
+   */
+  private async evaluateWithCustomLLMJudge(
+    criterion: EvaluationCriterion,
+    prompt: string,
+    response: string,
+    scenario?: any,
+    persona?: any
+  ): Promise<number> {
+    const evaluator = this.customEvaluators.find(e => e.id === criterion.evaluator);
+    if (!evaluator || !this.llmAdapter) {
+      console.warn(`Custom LLM evaluator ${criterion.evaluator} not found or no LLM adapter`);
+      return 0.5;
+    }
+
+    try {
+      const evaluationPrompt = (evaluator.config.prompt || 'Evaluate this response on a scale of 0.0 to 1.0: {response}')
+        .replace(/\{prompt\}/g, prompt)
+        .replace(/\{response\}/g, response)
+        .replace(/\{context\}/g, this.buildContextString(scenario, persona));
+
+      const evaluationResponse = await this.llmAdapter.generate(
+        evaluationPrompt,
+        {
+          systemPrompt: evaluator.config.systemPrompt || 'You are an expert evaluator.',
+          temperature: 0.1,
+          maxTokens: 200
+        }
+      );
+
+      return this.parseEvaluationResponse(evaluationResponse.text, 'score');
+      
+    } catch (error) {
+      console.error(`Custom LLM evaluation failed:`, error);
+      return 0.5;
+    }
+  }
+
+  /**
+   * Parse LLM evaluation response
+   */
+  private parseEvaluationResponse(responseText: string, format: string): number {
+    try {
+      if (format === 'json') {
+        // Try to parse JSON response for detailed evaluation
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          // Calculate weighted average if multiple scores
+          if (typeof parsed === 'object' && parsed.accuracy !== undefined) {
+            const scores = Object.values(parsed).filter(v => typeof v === 'number') as number[];
+            return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+          }
+        }
+      }
+      
+      // Parse single score (most common case)
+      const scoreMatch = responseText.match(/(\d+\.\d+|\d+)/);  
+      if (scoreMatch && scoreMatch[1]) {
+        const score = parseFloat(scoreMatch[1]);
+        
+        // Normalize to 0-1 range if needed
+        if (score > 1 && score <= 10) {
+          return score / 10;
+        } else if (score > 10 && score <= 100) {
+          return score / 100;
+        } else if (score >= 0 && score <= 1) {
+          return score;
+        }
+      }
+      
+      throw new Error(`Unable to parse score from: ${responseText}`);
+      
+    } catch (error) {
+      console.warn(`Failed to parse evaluation response: ${responseText}`, error);
+      return 0.5; // Default fallback score
+    }
+  }
+
+  /**
+   * Create a generic evaluation prompt for custom criteria
+   */
+  private createGenericEvaluationPrompt(criterion: EvaluationCriterion): EvaluationPromptTemplate {
+    return {
+      name: criterion.name,
+      description: criterion.description,
+      systemPrompt: `You are an expert evaluator. Your role is to assess AI responses objectively and provide accurate ratings.`,
+      evaluationPrompt: `Evaluate this AI response for ${criterion.name.toUpperCase()} on a scale of 0.0 to 1.0:
+
+Original Question: "{prompt}"
+
+AI Response: "{response}"
+
+Criterion: ${criterion.description}
+
+Respond with ONLY a decimal number between 0.0 and 1.0 (e.g., 0.85)`,
+      outputFormat: 'score',
+      scoreRange: [0, 1],
+      criteria: [criterion.name]
+    };
+  }
+
+  /**
+   * Build context string from scenario and persona
+   */
+  private buildContextString(scenario?: any, persona?: any): string {
+    const contextParts: string[] = [];
+    
+    if (scenario) {
+      if (scenario.description) contextParts.push(`Scenario: ${scenario.description}`);
+      if (scenario.context) contextParts.push(`Context: ${JSON.stringify(scenario.context)}`);
+    }
+    
+    if (persona) {
+      if (persona.name) contextParts.push(`User Type: ${persona.name}`);
+      if (persona.traits) contextParts.push(`User Traits: ${JSON.stringify(persona.traits)}`);
+    }
+    
+    return contextParts.length > 0 ? contextParts.join('\n') : 'No additional context provided';
+  }
+
+  /**
+   * Get available LLM judge evaluation methods
+   */
+  static getAvailableEvaluationMethods(): string[] {
+    return EvaluationPrompts.getAllPrompts().map(p => p.name);
+  }
+
+  /**
+   * Enable batch evaluation for multiple criteria
+   */
+  async evaluateDetailed(
+    prompt: string,
+    response: string,
+    scenario?: any,
+    persona?: any
+  ): Promise<{
+    scores: Record<string, number>;
+    reasoning: Record<string, string>;
+    overallFeedback: string;
+  }> {
+    if (!this.llmJudgeConfig.enabled || !this.llmAdapter) {
+      throw new Error('LLM-as-Judge not enabled or no adapter provided');
+    }
+
+    const template = EvaluationPrompts.DETAILED_EVALUATION;
+    const formattedPrompts = EvaluationPrompts.formatPrompt(template, {
+      prompt,
+      response,
+      context: this.buildContextString(scenario, persona),
+      persona: persona?.name || '',
+      scenario: scenario?.description || ''
+    });
+
+    try {
+      const evaluationResponse = await this.llmAdapter.generate(
+        formattedPrompts.evaluationPrompt,
+        {
+          systemPrompt: formattedPrompts.systemPrompt,
+          temperature: 0.1,
+          maxTokens: 1500,
+          jsonMode: true
+        }
+      );
+
+      const jsonMatch = evaluationResponse.text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          scores: {
+            accuracy: parsed.accuracy || 0.5,
+            helpfulness: parsed.helpfulness || 0.5,
+            relevance: parsed.relevance || 0.5,
+            completeness: parsed.completeness || 0.5,
+            safety: parsed.safety || 0.5,
+            coherence: parsed.coherence || 0.5
+          },
+          reasoning: parsed.reasoning || {},
+          overallFeedback: parsed.overall_feedback || 'No detailed feedback provided'
+        };
+      }
+      
+      throw new Error('Unable to parse detailed evaluation response');
+      
+    } catch (error) {
+      console.error('Detailed LLM evaluation failed:', error);
+      throw error;
     }
   }
 

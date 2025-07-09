@@ -8,7 +8,8 @@ export type SupportedEmbeddingProvider =
   | 'voyage'
   | 'cohere'
   | 'google'
-  | 'mistral';
+  | 'mistral'
+  | 'ollama';
 
 export interface EmbeddingConfig {
   provider: SupportedEmbeddingProvider;

@@ -184,18 +184,32 @@ export interface EvaluationConfig {
 
 export interface EvaluationCriterion {
   name: string;
-  type: 'accuracy' | 'relevance' | 'coherence' | 'completeness' | 'safety' | 'creativity' | 'custom';
+  type: 'accuracy' | 'relevance' | 'coherence' | 'completeness' | 'safety' | 'creativity' | 'empathy' | 'helpfulness' | 'llm_judge' | 'custom';
   weight: number;
   description: string;
   evaluator?: string;
+  prompt?: string; // Custom evaluation prompt for LLM judge
+  model?: string; // Specific model to use for this criterion
 }
 
 export interface CustomEvaluator {
   id: string;
   name: string;
   description: string;
-  implementation: 'llm' | 'function' | 'regex' | 'api';
-  config: any;
+  implementation: 'llm' | 'llm_judge' | 'function' | 'regex' | 'api' | 'semantic_similarity' | 'multi_model_consensus';
+  config: {
+    prompt?: string;
+    systemPrompt?: string;
+    model?: string;
+    temperature?: number;
+    expectedOutput?: string;
+    similarityThreshold?: number;
+    models?: string[]; // For multi-model consensus
+    pattern?: string; // For regex
+    flags?: string; // For regex
+    endpoint?: string; // For API
+    [key: string]: any;
+  };
 }
 
 export interface DatabaseConfig {
@@ -526,7 +540,7 @@ export interface TestFrameworkError extends Error {
 
 // Utility types
 export type TestStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-export type EvaluationType = 'accuracy' | 'relevance' | 'coherence' | 'completeness' | 'safety' | 'creativity' | 'custom';
+export type EvaluationType = 'accuracy' | 'relevance' | 'coherence' | 'completeness' | 'safety' | 'creativity' | 'empathy' | 'helpfulness' | 'llm_judge' | 'custom';
 export type ScenarioCategory = 'customer-service' | 'content-generation' | 'data-retrieval' | 'reasoning' | 'creative' | 'technical' | 'custom';
 export type ReportFormat = 'html' | 'pdf' | 'json' | 'csv' | 'markdown';
 export type OptimizationStrategy = 'genetic' | 'hill_climbing' | 'random_search' | 'bayesian';

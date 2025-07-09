@@ -12,6 +12,7 @@ export { VoyageEmbeddingProvider } from './VoyageEmbeddingProvider';
 export { CohereEmbeddingProvider } from './CohereEmbeddingProvider';
 export { GoogleEmbeddingProvider } from './GoogleEmbeddingProvider';
 export { MistralEmbeddingProvider } from './MistralEmbeddingProvider';
+export { OllamaEmbeddingProvider } from './OllamaEmbeddingProvider';
 
 import { BaseEmbeddingProvider } from './BaseEmbeddingProvider';
 import { OpenAIEmbeddingProvider } from './OpenAIEmbeddingProvider';
@@ -19,6 +20,7 @@ import { VoyageEmbeddingProvider } from './VoyageEmbeddingProvider';
 import { CohereEmbeddingProvider } from './CohereEmbeddingProvider';
 import { GoogleEmbeddingProvider } from './GoogleEmbeddingProvider';
 import { MistralEmbeddingProvider } from './MistralEmbeddingProvider';
+import { OllamaEmbeddingProvider } from './OllamaEmbeddingProvider';
 import { 
   SupportedEmbeddingProvider, 
  
@@ -39,6 +41,8 @@ export function createEmbeddingProvider(provider: SupportedEmbeddingProvider, co
       return new GoogleEmbeddingProvider(config);
     case 'mistral':
       return new MistralEmbeddingProvider(config);
+    case 'ollama':
+      return new OllamaEmbeddingProvider(config);
     default:
       const error = new Error(`Unsupported embedding provider: ${provider}`) as any;
       error.type = 'INVALID_PROVIDER';
@@ -50,7 +54,7 @@ export function createEmbeddingProvider(provider: SupportedEmbeddingProvider, co
  * Get all available embedding providers
  */
 export function getAvailableEmbeddingProviders(): SupportedEmbeddingProvider[] {
-  return ['openai', 'voyage', 'cohere', 'google', 'mistral'];
+  return ['openai', 'voyage', 'cohere', 'google', 'mistral', 'ollama'];
 }
 
 /**
@@ -122,6 +126,7 @@ export async function selectBestEmbeddingProvider(criteria?: {
       'openai': 3,   // Reliable and feature-rich
       'mistral': 2,  // Good basic embedding
       'cohere': 4,   // Great for search and reranking
+      'ollama': 3,   // Local inference, no API costs
     };
 
     score += performanceScores[provider] || 0;
@@ -141,6 +146,7 @@ export async function selectBestEmbeddingProvider(criteria?: {
     if (criteria?.prefersCost) {
       // Lower cost = higher score
       const costScores: Record<string, number> = {
+        'ollama': 5,   // Free local inference
         'google': 3,   // Very competitive pricing
         'mistral': 2,  // Good pricing
         'voyage': 1,   // Moderate pricing

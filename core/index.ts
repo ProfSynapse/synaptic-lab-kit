@@ -6,7 +6,8 @@
 // Core components
 export { TestRunner } from './TestRunner';
 export { ResponseGenerator } from './ResponseGenerator';
-export { ResponseEvaluator } from './ResponseEvaluator';
+export { ResponseEvaluator, LLMJudgeConfig } from './ResponseEvaluator';
+export { EvaluationPrompts, EvaluationPromptTemplate } from './EvaluationPrompts';
 export { PersonaGenerator } from './PersonaGenerator';
 export { ScenarioBuilder } from './ScenarioBuilder';
 
@@ -283,7 +284,7 @@ export class SynapticLabKit {
       embeddingProviders: ['openai', 'voyage', 'cohere', 'google', 'mistral'],
       scenarioCategories: this.scenarioBuilder.getAvailableCategories(),
       personaTypes: this.personaGenerator.getAvailableTypes(),
-      evaluationCriteria: ['accuracy', 'relevance', 'coherence', 'completeness', 'safety', 'creativity']
+      evaluationCriteria: ['accuracy', 'relevance', 'coherence', 'completeness', 'safety', 'creativity', 'empathy', 'helpfulness', 'llm_judge']
     };
   }
 
