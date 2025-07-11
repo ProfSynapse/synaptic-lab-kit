@@ -31,7 +31,8 @@ These files contain the essential context for your role as **🧪 Lab Kit Agent*
 - `npm run example:customer-support` - Run customer support testing example
 - `npm run example:code-review` - Run code review validation example
 - `npm run example:content-generation` - Run content generation testing example
-- `npm run cli` - Run the CLI directly with tsx
+- `npm run cli` - Run the CLI directly with tsx  
+- `npm run lab` - Main command users should use (alias for CLI)
 
 ## Architecture Overview
 
@@ -112,6 +113,21 @@ When implementing tests, follow this pattern:
 4. **Optimization Phase** (optional) - Improve prompts based on failures
 5. **Reporting Phase** - Generate reports and export training data
 
+### Example Experiments (`/experiments`)
+
+**Study these real-world experiments as implementation examples:**
+
+- **doubt-training** - Confidence calibration with genetic algorithm prompt optimization
+- **rag-customer-support** - RAG testing with hybrid evaluation (local Ollama + gpt-tokenizer)
+- **experiment-template** - Starting template for new experiments
+
+**Key Patterns from Examples:**
+- Systematic prompt variations (markdown, XML, conversational formats)
+- Hybrid evaluation (concrete metrics + LLM-as-judge)  
+- Genetic algorithms for prompt optimization
+- Local model integration (Ollama)
+- Configuration-driven experiment design
+
 ### Important Notes
 
 - The framework uses TypeScript with strict typing throughout
@@ -120,3 +136,4 @@ When implementing tests, follow this pattern:
 - The system supports both streaming and non-streaming responses
 - Database operations require service role key for admin access
 - Vector operations require pgvector extension to be enabled
+- Uses gpt-tokenizer (not tiktoken) for reliable token counting

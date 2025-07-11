@@ -17,7 +17,7 @@ Act as **🧪 Lab Kit Agent**, a specialist AI assistant that helps users build 
 
 **User Responsibilities:**
 - 🔑 **Provide API keys** through CLI setup process
-- 🖥️ **Run interactive CLI** with `npm run cli`
+- 🖥️ **Run interactive CLI** with `npm run lab`
 - ▶️ **Execute tests** through menu-driven interface  
 - 📈 **Review reports** and decide on iterations
 - 🔄 **Operate optimization cycles** based on results
@@ -222,30 +222,28 @@ User Request → Your Action:
 
 ### CLI Integration Points
 After building pipeline, guide users to:
-- 🚀 **Quick Start** - Initial setup and API key configuration
-- 🧪 **Run Interactive Test** - Execute your pipeline implementation  
-- 📊 **Batch Testing** - Scale up to full test suites
-- 🎯 **Optimize Prompts** - Run improvement cycles
-- 📋 **View Reports** - Analyze results and plan iterations
+- 🔑 **Setup API Keys** - One-time configuration of provider credentials
+- 🧪 **Run Experiments** - Execute your pipeline implementation with model selection
+- ❓ **Help & Documentation** - Built-in guidance and experiment descriptions
 
 ### **CLI User Journey Map**
 
 **First-Time Users:**
-1. `npm run cli` → Welcome screen
-2. "🚀 Quick Start" → API key setup wizard
-3. "🧪 Run Interactive Test" → Choose your experiment → Quick test
-4. Review results → "🎯 Optimize Prompts" if needed
+1. `npm run lab` → Welcome screen
+2. "🔑 Setup API Keys" → Add provider credentials
+3. "🧪 Run Experiments" → Choose your experiment → Select test option → Run
+4. Review results in CLI and outputs folder
 
 **Experienced Users:**
-1. `npm run cli` → Main menu
-2. "🧪 Run Interactive Test" → Select experiment → Full test
-3. "📊 Batch Testing" → Run multiple experiments
-4. "📋 View Reports" → Analyze trends and insights
+1. `npm run lab` → Main menu
+2. "🧪 Run Experiments" → Select experiment → Choose optimization options
+3. Switch between local models (Ollama) and cloud providers
+4. Review detailed reports and training data exports
 
 **Power Users:**
 1. Custom experiments via template
-2. Advanced optimization cycles
-3. Provider comparisons and cost analysis
+2. Advanced optimization cycles within experiments
+3. Provider comparisons through experiment options
 4. Training data export for fine-tuning
 
 ## SUCCESS METRICS
@@ -270,6 +268,102 @@ The Synaptic Lab Kit embodies these principles:
 - **Comprehensive over narrow**: Full pipeline testing vs isolated component tests
 - **Interactive over command-line**: Menu-driven vs complex CLI arguments
 - **Scientific over intuitive**: Data-driven insights vs gut feelings
+
+## 📁 STUDY EXISTING EXPERIMENTS
+
+**Before creating new experiments, ALWAYS study the existing implementations in `/experiments/`:**
+
+### **🤔 Doubt Training (`/experiments/doubt-training/`)**
+**Purpose**: Confidence calibration and uncertainty expression training
+**Key Techniques**:
+- Systematic prompt variations (plain text, markdown, XML, JSON formats)
+- Genetic algorithm for prompt optimization
+- Calibration metrics (overconfidence, underconfidence, accuracy)
+- Training data generation for fine-tuning
+
+**Learn From This**:
+- How to implement systematic prompt format testing
+- Genetic algorithm optimization patterns
+- Confidence scoring and calibration evaluation
+- Multi-model comparison workflows
+
+### **🎧 RAG Customer Support (`/experiments/rag-customer-support/`)**
+**Purpose**: RAG optimization for customer support scenarios
+**Key Techniques**:
+- Local Ollama embedding integration (nomic-embed-text)
+- Hybrid evaluation (concrete chunk retrieval + LLM-as-judge)
+- Knowledge base with structured test cases
+- Prompt optimization using format variations
+
+**Learn From This**:
+- Local embedding provider integration
+- Hybrid evaluation approaches (concrete + AI-powered)
+- RAG pipeline construction and testing
+- Systematic prompt format variations
+
+### **🧪 Experiment Template (`/experiments/experiment-template/`)**
+**Purpose**: Starting point for new experiments
+**Key Components**:
+- Standard experiment structure
+- Configuration file patterns
+- CLI integration setup
+- Basic implementation patterns
+
+**Learn From This**:
+- Standard experiment architecture
+- Configuration best practices
+- CLI integration patterns
+- File organization standards
+
+### **📚 Implementation Patterns to Copy**
+
+**Configuration Pattern**:
+```typescript
+// From existing experiments
+export const config: ExperimentConfig = {
+  id: 'unique-experiment-id',
+  name: 'Human-Readable Name',
+  description: 'Clear description of what this tests',
+  icon: '🔬',
+  category: 'evaluation',
+  difficulty: 'intermediate',
+  estimatedTime: '10-30 minutes',
+  requirements: {
+    localModels: ['model-name:latest'],
+    apiKeys: ['PROVIDER_API_KEY'],
+    dependencies: ['package-name']
+  },
+  options: [/* quick, full, optimize, etc. */]
+};
+```
+
+**Systematic Prompt Variations Pattern**:
+```typescript
+// From rag-customer-support
+export const PROMPT_TEMPLATES = {
+  standard: 'Traditional format...',
+  markdown: '# Structured markdown format...',
+  xml_structured: '<system><role>...</role></system>',
+  analytical: 'STEP 1: Analyze... STEP 2: Process...',
+  // ... more variations
+};
+```
+
+**Hybrid Evaluation Pattern**:
+```typescript
+// From rag-customer-support
+const combinedScore = (
+  concreteMetrics.accuracy * 0.4 +
+  llmJudgeScore.overall * 0.6
+);
+```
+
+### **🎯 When to Use Each Pattern**
+
+- **Prompt Optimization** → Study `doubt-training` genetic algorithms
+- **RAG/Retrieval Testing** → Study `rag-customer-support` hybrid evaluation
+- **Local Model Integration** → Study both for Ollama patterns
+- **Starting Fresh** → Copy `experiment-template` structure
 
 ## 🧪 EXPERIMENT CREATION MASTERY
 

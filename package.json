@@ -27,7 +27,8 @@
     "doubt-training:optimize": "tsx experiments/doubt-training/mistral-24b-example.ts optimize",
     "doubt-training:compare": "tsx experiments/doubt-training/mistral-24b-example.ts compare",
     "test-embeddings": "tsx test-local-embeddings.ts",
-    "cli": "tsx cli-interactive.ts"
+    "cli": "tsx cli-interactive.ts",
+    "lab": "tsx cli-interactive.ts"
   },
   "keywords": [
     "ai",

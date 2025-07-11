@@ -24,7 +24,7 @@ This system prompt contains essential context for your specialized role in build
 
 ### User Responsibilities:
 1. **Provide API keys** through the CLI setup
-2. **Run the interactive CLI** with `npm run cli`
+2. **Run the interactive CLI** with `npm run lab`
 3. **Execute tests** through the menu interface
 4. **Review reports** and iterate based on results
 
@@ -418,25 +418,22 @@ cp .env.example .env
 # Edit .env with your API keys
 
 # Launch interactive CLI
-npm run cli
+npm run lab
 ```
 
-**The CLI provides a menu-driven experience:**
-- 🚀 Quick Start - Complete setup wizard
-- 🧪 Run Interactive Test - Create and run tests
-- 🔑 Manage API Keys - Setup provider credentials
-- 📊 Batch Testing - Run multiple tests
-- 🎯 Optimize Prompts - AI-powered improvement
-- 🛠 Settings & Config - Customize experience
-- ❓ Help & Documentation - Built-in guidance
+**The CLI provides a streamlined experience:**
+- 🧪 **Run Experiments** - Choose and run AI experiments with model selection
+- 🔑 **Setup API Keys** - Add, list, test, and remove provider credentials  
+- ❓ **Help & Documentation** - Built-in guidance and experiment descriptions
 
 **Key Feature**: Users stay inside the CLI (like a chat) rather than running individual commands.
 
 **Typical Workflow:**
 1. **AI Assistant** (you) creates the testing pipeline code
-2. **User** runs `npm run cli` to enter interactive mode
-3. **User** navigates menus to run tests, view reports, optimize prompts
-4. **CLI** handles all execution and provides real-time feedback
+2. **User** runs `npm run lab` to enter interactive mode
+3. **User** sets up API keys (one-time setup)
+4. **User** selects experiments and runs tests with preferred models
+5. **CLI** handles all execution and provides real-time feedback
 
 ## 🎮 CLI User Guide
 
@@ -449,17 +446,8 @@ Once an AI assistant creates your experiment, here's how to execute it:
 # 1. Install dependencies
 npm install
 
-# 2. Copy environment template
-cp .env.example .env
-
-# 3. Add your API keys to .env file
-# (Open .env in your editor and add keys)
-```
-
-#### **Running Tests:**
-```bash
-# Start the interactive CLI
-npm run cli
+# 2. Start the interactive CLI
+npm run lab
 ```
 
 #### **CLI Navigation:**
@@ -468,24 +456,26 @@ npm run cli
 - Type **responses** when prompted
 - Use **Ctrl+C** to exit at any time
 
-#### **Common Workflows:**
+#### **Streamlined Workflows:**
 
 **🚀 First Time Users:**
-1. Select "Quick Start" from main menu
-2. Follow the setup wizard
-3. Add API keys when prompted
-4. Run your first test
+1. Run `npm run lab`
+2. Select "🔑 Setup API Keys" 
+3. Add API keys for your preferred providers
+4. Select "🧪 Run Experiments"
+5. Choose an experiment and run it
 
 **🧪 Running Experiments:**
-1. Select "Run Interactive Test"
+1. Select "🧪 Run Experiments"
 2. Choose your experiment from the list
-3. Select test options (quick/full/custom)
-4. Review results in the CLI
+3. Select test options (baseline/optimize/validate)
+4. Choose model (local Ollama or cloud provider)
+5. Review results in the CLI
 
 **🔑 Managing API Keys:**
-1. Select "Manage API Keys"
-2. Add/update provider credentials
-3. Test connectivity to providers
+1. Select "🔑 Setup API Keys"
+2. Add/list/test/remove provider credentials
+3. Get links to provider signup pages
 
 **📊 Viewing Results:**
 - Results are displayed in the CLI
@@ -493,10 +483,10 @@ npm run cli
 - Training data exported as JSONL files
 
 #### **Tips:**
-- **Start with Quick Test** to validate setup
+- **API keys are managed in the CLI** - no need to manually edit .env
 - **Check outputs folder** for detailed reports
-- **Use Settings** to customize preferences
-- **Help section** provides command reference
+- **Help section** shows available experiments and providers
+- **Local models** (Ollama) work without API keys
 
 ## 📊 Output Formats
 
@@ -538,7 +528,7 @@ cp -r experiments/experiment-template experiments/your-experiment-name
 # Edit experiments/your-experiment-name/index.ts
 
 # 4. Test your experiment
-npm run cli  # Your experiment appears automatically!
+npm run lab  # Your experiment appears automatically!
 ```
 
 ### **Step-by-Step Experiment Creation**
@@ -734,6 +724,98 @@ export const config: ExperimentConfig = {
 
 ### **Template Available**
 Always copy `/experiments/experiment-template/` as your starting point.
+
+## 📁 Example Experiments 
+
+The framework includes real-world experiments that demonstrate best practices for building different types of tests. **Study these examples** to understand effective experiment design patterns:
+
+### **🤔 Doubt Training (`/experiments/doubt-training/`)**
+**Purpose**: Train models to express calibrated confidence and uncertainty  
+**Pattern**: Prompt optimization using genetic algorithms  
+**Features**:
+- Systematic prompt variations (plain text, markdown, XML formats)
+- Confidence calibration across different question types
+- Genetic algorithm for automated prompt improvement
+- Multi-model testing and comparison
+
+**Key Lessons**:
+- How to implement systematic prompt variation strategies
+- Using genetic algorithms for prompt optimization
+- Measuring confidence calibration and overconfidence bias
+- Creating training data for model fine-tuning
+
+### **🎧 RAG Customer Support (`/experiments/rag-customer-support/`)**
+**Purpose**: Optimize RAG prompts for customer support scenarios  
+**Pattern**: Hybrid evaluation with concrete retrieval + LLM-as-judge  
+**Features**:
+- Local Ollama embeddings (nomic-embed-text) 
+- Knowledge base with 18 support documents
+- Hybrid evaluation: chunk retrieval accuracy + response quality
+- Systematic prompt format testing (markdown, XML, conversational, etc.)
+
+**Key Lessons**:
+- Building RAG pipelines with local embeddings
+- Implementing hybrid evaluation approaches
+- Testing systematic prompt format variations
+- Using concrete metrics alongside LLM evaluation
+
+### **📝 Content Generation (`/experiments/content-generation/`)**
+**Purpose**: Validate content quality across different domains  
+**Pattern**: Multi-criteria evaluation with style consistency  
+**Features**:
+- Domain-specific persona generation
+- Style guide adherence testing
+- Brand voice consistency evaluation
+- Multi-provider comparison
+
+**Key Lessons**:
+- Domain-specific testing approaches
+- Style and brand consistency evaluation
+- Multi-criteria scoring systems
+
+### **🔍 Code Review (`/experiments/code-review/`)**
+**Purpose**: Test AI code review accuracy and completeness  
+**Pattern**: Ground truth validation with expert annotations  
+**Features**:
+- Real code samples with known issues
+- Security vulnerability detection
+- Best practice enforcement
+- Explanation quality assessment
+
+**Key Lessons**:
+- Ground truth dataset construction
+- Technical accuracy evaluation
+- Security-focused testing
+
+### **🧪 Experiment Template (`/experiments/experiment-template/`)**
+**Purpose**: Starting point for new experiments  
+**Pattern**: Minimal example with all necessary components  
+**Features**:
+- Complete experiment structure
+- Configuration template
+- CLI integration setup
+- Documentation examples
+
+**Key Lessons**:
+- Standard experiment architecture
+- Configuration best practices
+- CLI integration patterns
+
+### **💡 How to Learn from Examples**
+
+1. **Read the experiment configs** (`experiment.config.ts`) to understand structure
+2. **Study the main implementation** (`index.ts`) to see patterns
+3. **Look at evaluation approaches** (how success is measured)
+4. **Run the experiments** yourself to see outputs
+5. **Copy and modify** for your own use cases
+
+### **🎯 Choosing the Right Pattern**
+
+- **Prompt Optimization** → Study `doubt-training` for genetic algorithms
+- **RAG Testing** → Study `rag-customer-support` for hybrid evaluation  
+- **Content Quality** → Study `content-generation` for multi-criteria evaluation
+- **Technical Accuracy** → Study `code-review` for ground truth validation
+- **Starting Fresh** → Copy `experiment-template` as your base
 
 ## 🔍 When to Use Each Component
 
