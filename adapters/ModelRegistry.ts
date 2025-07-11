@@ -14,6 +14,7 @@ import { ANTHROPIC_MODELS, ANTHROPIC_DEFAULT_MODEL } from './anthropic/Anthropic
 import { MISTRAL_MODELS, MISTRAL_DEFAULT_MODEL } from './mistral/MistralModels';
 import { OPENROUTER_MODELS, OPENROUTER_DEFAULT_MODEL } from './openrouter/OpenRouterModels';
 import { REQUESTY_MODELS, REQUESTY_DEFAULT_MODEL } from './requesty/RequestyModels';
+import { GROK_MODELS } from './grok/GrokModels';
 
 // Re-export ModelSpec for convenience
 export { ModelSpec };
@@ -28,7 +29,8 @@ export const AI_MODELS: Record<string, ModelSpec[]> = {
   anthropic: ANTHROPIC_MODELS,
   mistral: MISTRAL_MODELS,
   openrouter: OPENROUTER_MODELS,
-  requesty: REQUESTY_MODELS
+  requesty: REQUESTY_MODELS,
+  grok: GROK_MODELS
 };
 
 /**
