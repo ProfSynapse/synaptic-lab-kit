@@ -3,8 +3,8 @@
  * Implements retrieval-augmented generation with embedding-based search
  */
 
-import { OllamaEmbeddingProvider } from '../../embeddings/OllamaEmbeddingProvider';
-import { OllamaAdapter } from '../../adapters/OllamaAdapter';
+import { BaseEmbeddingProvider } from '../../embeddings/BaseEmbeddingProvider';
+import { BaseAdapter } from '../../adapters/BaseAdapter';
 import { KnowledgeBase, KnowledgeChunk, TestCase } from './KnowledgeBase';
 
 export interface RAGConfig {
@@ -38,15 +38,15 @@ export interface RetrievalPrompts {
 }
 
 export class RAGPipeline {
-  private embeddings: OllamaEmbeddingProvider;
-  private llm: OllamaAdapter;
+  private embeddings: BaseEmbeddingProvider;
+  private llm: BaseAdapter;
   private knowledgeBase: KnowledgeBase;
   private config: RAGConfig;
   private prompts: RetrievalPrompts;
 
   constructor(
-    embeddings: OllamaEmbeddingProvider,
-    llm: OllamaAdapter,
+    embeddings: BaseEmbeddingProvider,
+    llm: BaseAdapter,
     knowledgeBase: KnowledgeBase,
     config: Partial<RAGConfig> = {}
   ) {

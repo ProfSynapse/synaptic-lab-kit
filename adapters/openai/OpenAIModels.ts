@@ -23,6 +23,22 @@ export const OPENAI_MODELS: ModelSpec[] = [
       supportsThinking: false
     }
   },
+  {
+    provider: 'openai',
+    name: 'GPT-4o Mini',
+    apiName: 'gpt-4o-mini',
+    contextWindow: 128000,
+    maxTokens: 16384,
+    inputCostPerMillion: 0.15,
+    outputCostPerMillion: 0.60,
+    capabilities: {
+      supportsJSON: true,
+      supportsImages: true,
+      supportsFunctions: true,
+      supportsStreaming: true,
+      supportsThinking: false
+    }
+  },
 
   // GPT-4.1 models
   {

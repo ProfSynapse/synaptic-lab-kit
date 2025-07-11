@@ -3,7 +3,7 @@
  * Combines concrete chunk retrieval testing with LLM-as-Judge response evaluation
  */
 
-import { OllamaAdapter } from '../../adapters/OllamaAdapter';
+import { BaseAdapter } from '../../adapters/BaseAdapter';
 import { KnowledgeBase, KnowledgeChunk, TestCase } from './KnowledgeBase';
 import { RAGResult } from './RAGPipeline';
 
@@ -47,12 +47,12 @@ export interface EvaluationCriteria {
 }
 
 export class HybridEvaluator {
-  private llmJudge: OllamaAdapter;
+  private llmJudge: BaseAdapter;
   private knowledgeBase: KnowledgeBase;
   private criteria: EvaluationCriteria;
 
   constructor(
-    llmJudge: OllamaAdapter,
+    llmJudge: BaseAdapter,
     knowledgeBase: KnowledgeBase,
     criteria: Partial<EvaluationCriteria> = {}
   ) {

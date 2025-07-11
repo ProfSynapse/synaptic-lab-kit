@@ -13,6 +13,7 @@ export class MistralAdapter extends BaseAdapter {
 
   constructor(model?: string) {
     super('MISTRAL_API_KEY', model || 'mistral-large-latest');
+    this.initializeCache();
   }
 
   async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {

@@ -3,7 +3,7 @@
  * Creates synthetic customer support documentation with numbered chunks
  */
 
-import { OllamaEmbeddingProvider } from '../../embeddings/OllamaEmbeddingProvider';
+import { BaseEmbeddingProvider } from '../../embeddings/BaseEmbeddingProvider';
 import { VectorManager } from '../../database/VectorManager';
 import { SupabaseManager } from '../../database/SupabaseManager';
 
@@ -27,10 +27,10 @@ export interface TestCase {
 export class KnowledgeBase {
   private chunks: KnowledgeChunk[] = [];
   private testCases: TestCase[] = [];
-  private embeddings: OllamaEmbeddingProvider;
+  private embeddings: BaseEmbeddingProvider;
   private vectorManager?: VectorManager;
 
-  constructor(embeddings: OllamaEmbeddingProvider) {
+  constructor(embeddings: BaseEmbeddingProvider) {
     this.embeddings = embeddings;
     this.initializeKnowledgeBase();
     this.initializeTestCases();
