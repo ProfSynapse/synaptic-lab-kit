@@ -6,7 +6,7 @@
 import { RAGPipeline, RetrievalPrompts } from './RAGPipeline';
 import { HybridEvaluator } from './HybridEvaluator';
 import { KnowledgeBase, TestCase } from './KnowledgeBase';
-import { OllamaAdapter } from '../../adapters/OllamaAdapter';
+import { BaseAdapter } from '../../adapters/BaseAdapter';
 import { 
   PROMPT_VARIATION_SETS, 
   RESPONSE_GENERATION_TEMPLATES,
@@ -44,7 +44,7 @@ export class PromptOptimizer {
   private ragPipeline: RAGPipeline;
   private evaluator: HybridEvaluator;
   private knowledgeBase: KnowledgeBase;
-  private llm: OllamaAdapter;
+  private llm: BaseAdapter;
   private config: PromptOptimizationConfig;
   private testCases: TestCase[];
 
@@ -52,7 +52,7 @@ export class PromptOptimizer {
     ragPipeline: RAGPipeline,
     evaluator: HybridEvaluator,
     knowledgeBase: KnowledgeBase,
-    llm: OllamaAdapter,
+    llm: BaseAdapter,
     config: Partial<PromptOptimizationConfig> = {}
   ) {
     this.ragPipeline = ragPipeline;

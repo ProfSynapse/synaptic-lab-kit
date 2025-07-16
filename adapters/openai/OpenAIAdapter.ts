@@ -30,6 +30,9 @@ export class OpenAIAdapter extends BaseAdapter {
       organization: process.env.OPENAI_ORG_ID,
       project: process.env.OPENAI_PROJECT_ID
     });
+    
+    // Initialize cache
+    this.initializeCache();
   }
 
   async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {

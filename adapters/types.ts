@@ -134,7 +134,8 @@ export type SupportedProvider =
   | 'mistral' 
   | 'openrouter' 
   | 'requesty'
-  | 'ollama';
+  | 'ollama'
+  | 'grok';
 
 export type SupportedModel = 
   // OpenAI

@@ -6,7 +6,12 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { OllamaEmbeddingProvider } from '../../embeddings/OllamaEmbeddingProvider';
+import { OpenAIEmbeddingProvider } from '../../embeddings/OpenAIEmbeddingProvider';
+import { BaseEmbeddingProvider } from '../../embeddings/BaseEmbeddingProvider';
 import { OllamaAdapter } from '../../adapters/OllamaAdapter';
+import { createAdapter } from '../../adapters/index';
+import { BaseAdapter } from '../../adapters/BaseAdapter';
+import { ModelRegistry } from '../../adapters/ModelRegistry';
 import { KnowledgeBase } from './KnowledgeBase';
 import { RAGPipeline } from './RAGPipeline';
 import { HybridEvaluator } from './HybridEvaluator';
@@ -35,12 +40,12 @@ export interface ExperimentResults {
 }
 
 export class RAGExperiment {
-  private embeddings: OllamaEmbeddingProvider;
-  private llm: OllamaAdapter;
-  private knowledgeBase: KnowledgeBase;
-  private ragPipeline: RAGPipeline;
-  private evaluator: HybridEvaluator;
-  private reportGenerator: ReportGenerator;
+  private embeddings!: BaseEmbeddingProvider;
+  private llm!: BaseAdapter;
+  private knowledgeBase!: KnowledgeBase;
+  private ragPipeline!: RAGPipeline;
+  private evaluator!: HybridEvaluator;
+  private reportGenerator!: ReportGenerator;
   private config: ExperimentConfig;
 
   constructor(config: ExperimentConfig) {
@@ -48,18 +53,46 @@ export class RAGExperiment {
     this.initializeComponents();
   }
 
-  private initializeComponents(): void {
-    // Initialize embedding provider
-    this.embeddings = new OllamaEmbeddingProvider({
-      model: 'nomic-embed-text:latest',
-      baseURL: 'http://localhost:11434'
-    });
+  private findModelSpec(modelName: string) {
+    // Search through all providers to find the model
+    const providers = ['openai', 'google', 'anthropic', 'mistral', 'openrouter', 'requesty', 'grok'];
+    
+    for (const provider of providers) {
+      const models = ModelRegistry.getProviderModels(provider);
+      const modelSpec = models.find(m => m.apiName === modelName);
+      if (modelSpec) return modelSpec;
+    }
+    
+    return null;
+  }
 
-    // Initialize LLM adapter
-    this.llm = new OllamaAdapter({
-      model: this.config.model,
-      baseUrl: 'http://localhost:11434'
-    });
+  private initializeComponents(): void {
+    // Determine provider from model name
+    const modelSpec = this.findModelSpec(this.config.model);
+    const provider = modelSpec?.provider || 'ollama';
+    
+    // Initialize embedding provider based on model provider
+    if (provider === 'openai') {
+      this.embeddings = new OpenAIEmbeddingProvider({
+        model: 'text-embedding-3-small'
+      });
+    } else {
+      // Default to Ollama for local models
+      this.embeddings = new OllamaEmbeddingProvider({
+        model: 'nomic-embed-text:latest',
+        baseURL: 'http://localhost:11434'
+      });
+    }
+
+    // Initialize LLM adapter based on provider
+    if (provider === 'ollama') {
+      this.llm = new OllamaAdapter({
+        model: this.config.model,
+        baseUrl: 'http://localhost:11434'
+      });
+    } else {
+      this.llm = createAdapter(provider as any, this.config.model);
+    }
 
     // Initialize knowledge base
     this.knowledgeBase = new KnowledgeBase(this.embeddings);
@@ -525,8 +558,8 @@ ${this.generateRecommendations(evaluationReport)}
    * Cleanup resources
    */
   private cleanup(): void {
-    if (this.embeddings) {
-      this.embeddings.dispose();
+    if (this.embeddings && 'dispose' in this.embeddings) {
+      (this.embeddings as any).dispose();
     }
   }
 }

@@ -14,6 +14,7 @@ export class RequestyAdapter extends BaseAdapter {
 
   constructor(model?: string) {
     super('REQUESTY_API_KEY', model || 'gpt-4-turbo');
+    this.initializeCache();
   }
 
   async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {

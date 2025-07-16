@@ -201,6 +201,29 @@ class SynapticCLI {
         }
         
         model = requiredModels[0];
+      } else {
+        // User chose not to use local models, get available API models
+        const availableModels = await this.getAvailableApiModels();
+        
+        if (availableModels.length === 0) {
+          console.log(`\n${icons.warning} No API keys found. Please configure API keys first.`);
+          console.log(`Run the 'Manage API Keys' option to add keys.`);
+          await this.returnToMenu();
+          return;
+        }
+        
+        const { selectedModel } = await inquirer.prompt([{
+          type: 'list',
+          name: 'selectedModel',
+          message: 'Choose model:',
+          choices: availableModels.map(m => ({ 
+            name: `${m.provider}: ${m.name}`, 
+            value: m.apiName 
+          })),
+          default: availableModels[0]?.apiName
+        }]);
+        
+        model = selectedModel;
       }
     }
 
@@ -427,6 +450,28 @@ ${API_KEY_CONFIGS.map(config =>
     } catch (error) {
       return [];
     }
+  }
+
+  async getAvailableApiModels(): Promise<Array<{provider: string, name: string, apiName: string}>> {
+    const { getAvailableProvidersWithKeys, ModelRegistry } = await import('./adapters/index');
+    
+    const availableProviders = await getAvailableProvidersWithKeys();
+    const availableModels: Array<{provider: string, name: string, apiName: string}> = [];
+    
+    for (const { provider, available } of availableProviders) {
+      if (available && provider !== 'ollama') {
+        const models = ModelRegistry.getProviderModels(provider);
+        models.forEach(model => {
+          availableModels.push({
+            provider: model.provider,
+            name: model.name,
+            apiName: model.apiName
+          });
+        });
+      }
+    }
+    
+    return availableModels;
   }
 
   async exit() {

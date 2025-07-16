@@ -14,6 +14,7 @@ export class OpenRouterAdapter extends BaseAdapter {
 
   constructor(model?: string) {
     super('OPENROUTER_API_KEY', model || 'anthropic/claude-3.5-sonnet');
+    this.initializeCache();
   }
 
   async generateUncached(prompt: string, options?: GenerateOptions): Promise<LLMResponse> {

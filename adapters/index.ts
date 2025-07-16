@@ -14,6 +14,7 @@ export { MistralAdapter } from './mistral/MistralAdapter';
 export { OpenRouterAdapter } from './openrouter/OpenRouterAdapter';
 export { RequestyAdapter } from './requesty/RequestyAdapter';
 export { OllamaAdapter } from './OllamaAdapter';
+export { GrokAdapter } from './grok/GrokAdapter';
 
 // Model registry and cost calculation
 export * from './modelTypes';
@@ -28,6 +29,7 @@ import { MistralAdapter } from './mistral/MistralAdapter';
 import { OpenRouterAdapter } from './openrouter/OpenRouterAdapter';
 import { RequestyAdapter } from './requesty/RequestyAdapter';
 import { OllamaAdapter } from './OllamaAdapter';
+import { GrokAdapter } from './grok/GrokAdapter';
 import { SupportedProvider, LLMProviderError } from './types';
 
 /**
@@ -51,6 +53,9 @@ export function createAdapter(provider: SupportedProvider, model?: string): Base
       return new RequestyAdapter(model);
     case 'ollama':
       return new OllamaAdapter(model ? { model } : undefined);
+    case 'grok':
+    case 'xai':
+      return new GrokAdapter(model);
     default:
       throw new LLMProviderError(
         `Unsupported provider: ${provider}`,
@@ -64,7 +69,7 @@ export function createAdapter(provider: SupportedProvider, model?: string): Base
  * Get all available providers
  */
 export function getAvailableProviders(): SupportedProvider[] {
-  return ['openai', 'google', 'anthropic', 'mistral', 'openrouter', 'requesty', 'ollama'];
+  return ['openai', 'google', 'anthropic', 'mistral', 'openrouter', 'requesty', 'ollama', 'grok'];
 }
 
 /**
